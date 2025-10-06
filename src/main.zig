@@ -44,5 +44,5 @@ pub fn main() !void {
         v_layers.destroy_debug_utils_messenger_ext(instance, debug_messenger, null)
     else {};
 
-    _ = try p_device.choose_physical_device(instance);
+    _ = try p_device.select_physical_device(instance);
 }

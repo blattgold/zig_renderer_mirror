@@ -7,9 +7,15 @@ const c = common.c;
 const VulkanError = common.VulkanError;
 const QueueFamilyIndices = common.QueueFamilyIndices;
 
-pub fn choose_physical_device(instance: c.VkInstance) !c.VkPhysicalDevice {
-    const allocator = std.heap.page_allocator;
+const ChoosePhysicalDeviceResult = struct {
+    indices: QueueFamilyIndices,
+    physical_device: c.VkPhysicalDevice,
+};
 
+pub fn find_physical_devices(
+    allocator: std.mem.Allocator,
+    instance: c.VkInstance,
+) ![]c.VkPhysicalDevice {
     var device_count: u32 = 0;
     _ = c.vkEnumeratePhysicalDevices(
         instance,
@@ -18,38 +24,63 @@ pub fn choose_physical_device(instance: c.VkInstance) !c.VkPhysicalDevice {
     );
 
     if (device_count == 0)
-        return VulkanError.NoSuitableDeviceFound;
+        return VulkanError.NoPhysicalDevices;
 
     var devices = try allocator.alloc(c.VkPhysicalDevice, device_count);
-    defer allocator.free(devices);
-
     if (c.vkEnumeratePhysicalDevices(
         instance,
         &device_count,
         &devices[0],
     ) != c.VK_SUCCESS)
-        return VulkanError.NoSuitableDeviceFound;
+        return VulkanError.NoPhysicalDevices;
 
-    var physical_device: c.VkPhysicalDevice = undefined;
-    for (devices) |device| {
-        if (try is_device_suitable(device)) {
-            physical_device = device;
+    return devices;
+}
+
+pub fn find_suitable_physical_device(
+    devices: []c.VkPhysicalDevice,
+) !ChoosePhysicalDeviceResult {
+    var device: c.VkPhysicalDevice = undefined;
+    var indices: QueueFamilyIndices = undefined;
+
+    for (devices) |d| {
+        const d_i = try find_queue_family_indices(d);
+
+        if (is_device_suitable(d_i)) {
+            device = d;
+            indices = d_i;
             break;
         }
     }
 
-    if (physical_device == null)
-        return VulkanError.NoSuitableDeviceFound;
+    if (device == null)
+        return VulkanError.NoSuitablePhysicalDevice;
 
-    logger.log(.Debug, "suitable physical device found: 0x{x}", .{@intFromPtr(physical_device.?)});
-
-    return physical_device.?;
+    return .{
+        .indices = indices,
+        .physical_device = device,
+    };
 }
 
-pub fn is_device_suitable(device: c.VkPhysicalDevice) !bool {
-    const indices = try find_queue_family_indices(device);
+// helper for find_suitable_physical_device
+fn is_device_suitable(
+    indices: QueueFamilyIndices,
+) bool {
+    return indices.is_complete();
+}
 
-    return indices.isComplete();
+pub fn select_physical_device(instance: c.VkInstance) !ChoosePhysicalDeviceResult {
+    const allocator = std.heap.page_allocator;
+
+    const devices = try find_physical_devices(allocator, instance);
+    defer allocator.free(devices);
+
+    const result = try find_suitable_physical_device(devices);
+
+    logger.log(.Debug, "suitable physical device found: 0x{x}", .{@intFromPtr(result.physical_device)});
+    logger.log(.Debug, "with: graphics_family_i: {}", .{result.indices.graphics_family.?});
+
+    return result;
 }
 
 pub fn find_queue_family_indices(device: c.VkPhysicalDevice) !QueueFamilyIndices {
@@ -78,7 +109,7 @@ pub fn find_queue_family_indices(device: c.VkPhysicalDevice) !QueueFamilyIndices
             indices.graphics_family = i;
         }
 
-        if (indices.isComplete()) {
+        if (indices.is_complete()) {
             break;
         }
 

@@ -7,7 +7,10 @@ pub const LogLevel = enum(u2) {
 
 pub const VulkanError = error{
     InstanceCreationFailure,
-    NoSuitableDeviceFound,
+
+    NoSuitablePhysicalDevice,
+    NoPhysicalDevices,
+
     GetRequiredExtensionsFailure,
     EnableValidationLayersFailure,
     SetupDebugMessengerFailure,
@@ -16,7 +19,7 @@ pub const VulkanError = error{
 pub const QueueFamilyIndices = struct {
     graphics_family: ?u32,
 
-    pub fn isComplete(self: @This()) bool {
+    pub fn is_complete(self: @This()) bool {
         return self.graphics_family != null;
     }
 };
