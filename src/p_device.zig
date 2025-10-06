@@ -8,6 +8,8 @@ const VulkanError = common.VulkanError;
 const QueueFamilyIndices = common.QueueFamilyIndices;
 
 pub fn choose_physical_device(instance: c.VkInstance) !c.VkPhysicalDevice {
+    const allocator = std.heap.page_allocator;
+
     var device_count: u32 = 0;
     _ = c.vkEnumeratePhysicalDevices(
         instance,
@@ -18,8 +20,8 @@ pub fn choose_physical_device(instance: c.VkInstance) !c.VkPhysicalDevice {
     if (device_count == 0)
         return VulkanError.NoSuitableDeviceFound;
 
-    const MAX_DEVICES = 16;
-    var devices: [MAX_DEVICES]c.VkPhysicalDevice = undefined;
+    var devices = try allocator.alloc(c.VkPhysicalDevice, device_count);
+    defer allocator.free(devices);
 
     if (c.vkEnumeratePhysicalDevices(
         instance,
@@ -39,7 +41,7 @@ pub fn choose_physical_device(instance: c.VkInstance) !c.VkPhysicalDevice {
     if (physical_device == null)
         return VulkanError.NoSuitableDeviceFound;
 
-    logger.log(.Debug, "suitable physical device found: {any}", .{physical_device.?});
+    logger.log(.Debug, "suitable physical device found: 0x{x}", .{@intFromPtr(physical_device.?)});
 
     return physical_device.?;
 }
