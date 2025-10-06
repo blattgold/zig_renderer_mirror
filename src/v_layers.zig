@@ -31,13 +31,11 @@ pub fn check_validation_layer_support() !void {
         for (available_layers) |available_layer| {
             logger.log(.Debug, "available layer: {s}", .{available_layer.layerName});
 
-            const available_layer_name_len = std.mem.indexOf(
+            if (std.mem.eql(
                 u8,
-                &available_layer.layerName,
-                &[1]u8{0},
-            ) orelse available_layer.layerName.len;
-
-            if (std.mem.eql(u8, requested_layer_name, available_layer.layerName[0..available_layer_name_len])) {
+                requested_layer_name,
+                std.mem.sliceTo(&available_layer.layerName, 0),
+            )) {
                 logger.log(.Debug, "found requested layer: {s}", .{requested_layer_name});
                 layer_found = true;
                 break;
