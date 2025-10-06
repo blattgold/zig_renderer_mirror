@@ -6,6 +6,7 @@ const common = @import("common.zig");
 const p_device = @import("p_device.zig");
 const v_layers = @import("v_layers.zig");
 const instance_mod = @import("instance.zig");
+const device_mod = @import("device.zig");
 
 const c = common.c;
 
@@ -44,5 +45,8 @@ pub fn main() !void {
         v_layers.destroy_debug_utils_messenger_ext(instance, debug_messenger, null)
     else {};
 
-    _ = try p_device.select_physical_device(instance);
+    const device_result = try p_device.select_physical_device(instance);
+
+    _ = try device_mod.create_logical_device(device_result.physical_device, device_result.indices);
+    // defer c.vkDestroyDevice(device, null);
 }

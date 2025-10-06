@@ -11,6 +11,8 @@ pub const VulkanError = error{
     NoSuitablePhysicalDevice,
     NoPhysicalDevices,
 
+    CreateDeviceFailure,
+
     GetRequiredExtensionsFailure,
     EnableValidationLayersFailure,
     SetupDebugMessengerFailure,
