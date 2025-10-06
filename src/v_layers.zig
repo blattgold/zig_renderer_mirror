@@ -1,6 +1,6 @@
 const std = @import("std");
 const common = @import("common.zig");
-const constants = @import("constants.zig");
+const config = @import("config.zig");
 const logger = @import("logger.zig");
 
 const c = common.c;
@@ -25,7 +25,7 @@ pub fn check_validation_layer_support() !void {
     ) != c.VK_SUCCESS)
         return VulkanError.EnableValidationLayersFailure;
 
-    for (constants.VALIDATION_LAYERS) |requested_layer_name| {
+    for (config.validation_layers) |requested_layer_name| {
         var layer_found = false;
 
         for (available_layers) |available_layer| {
@@ -103,7 +103,7 @@ pub fn populate_debug_messeneger_create_info(info: *c.VkDebugUtilsMessengerCreat
 }
 
 pub fn setup_debug_messenger(instance: c.VkInstance) !c.VkDebugUtilsMessengerEXT {
-    if (!constants.ENABLE_VALIDATION_LAYERS) return;
+    if (!config.enable_validation_layers) return;
 
     var info: c.VkDebugUtilsMessengerCreateInfoEXT = undefined;
     populate_debug_messeneger_create_info(&info);

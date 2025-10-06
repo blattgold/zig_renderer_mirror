@@ -1,9 +1,9 @@
 const std = @import("std");
 
-const constants = @import("constants.zig");
+const config = @import("config.zig");
 const logger = @import("logger.zig");
 const common = @import("common.zig");
-const choose_p_device = @import("choose_p_device.zig");
+const p_device = @import("p_device.zig");
 const v_layers = @import("v_layers.zig");
 const instance_mod = @import("instance.zig");
 
@@ -20,7 +20,7 @@ fn get_required_extensions(allocator: std.mem.Allocator) ![][*c]const u8 {
     var extensions: ArrayList([*c]const u8) = .{};
     try extensions.appendSlice(allocator, extensions_sdl[0..extension_count_sdl]);
 
-    if (constants.ENABLE_VALIDATION_LAYERS)
+    if (config.enable_validation_layers)
         try extensions.append(allocator, c.VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 
     return try extensions.toOwnedSlice(allocator);
@@ -39,10 +39,10 @@ pub fn main() !void {
     allocator.free(extensions);
     defer c.vkDestroyInstance(instance, null);
 
-    const debug_messenger = if (constants.ENABLE_VALIDATION_LAYERS) try v_layers.setup_debug_messenger(instance) else null;
-    defer if (constants.ENABLE_VALIDATION_LAYERS)
+    const debug_messenger = if (config.enable_validation_layers) try v_layers.setup_debug_messenger(instance) else null;
+    defer if (config.enable_validation_layers)
         v_layers.destroy_debug_utils_messenger_ext(instance, debug_messenger, null)
     else {};
 
-    _ = try choose_p_device.choose_physical_device(instance);
+    _ = try p_device.choose_physical_device(instance);
 }
