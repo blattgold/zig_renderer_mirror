@@ -10,21 +10,21 @@ pub fn create_instance(extensions: [][*c]const u8) !c.VkInstance {
     if (config.enable_validation_layers)
         try v_layers.check_validation_layer_support();
 
-    var app_info: c.VkApplicationInfo = .{};
+    var app_info: c.VkApplicationInfo = .{
+        .sType = c.VK_STRUCTURE_TYPE_APPLICATION_INFO,
+        .pApplicationName = config.app_name,
+        .applicationVersion = c.VK_MAKE_VERSION(0, 1, 0),
+        .pEngineName = "No Engine",
+        .engineVersion = c.VK_MAKE_VERSION(1, 0, 0),
+        .apiVersion = c.VK_API_VERSION_1_0,
+    };
 
-    app_info.sType = c.VK_STRUCTURE_TYPE_APPLICATION_INFO;
-    app_info.pApplicationName = config.app_name;
-    app_info.applicationVersion = c.VK_MAKE_VERSION(0, 1, 0);
-    app_info.pEngineName = "No Engine";
-    app_info.engineVersion = c.VK_MAKE_VERSION(1, 0, 0);
-    app_info.apiVersion = c.VK_API_VERSION_1_0;
-
-    var inst_info: c.VkInstanceCreateInfo = .{};
-
-    inst_info.sType = c.VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-    inst_info.pApplicationInfo = &app_info;
-    inst_info.enabledExtensionCount = @intCast(extensions.len);
-    inst_info.ppEnabledExtensionNames = extensions.ptr;
+    var inst_info: c.VkInstanceCreateInfo = .{
+        .sType = c.VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
+        .pApplicationInfo = &app_info,
+        .enabledExtensionCount = @intCast(extensions.len),
+        .ppEnabledExtensionNames = extensions.ptr,
+    };
 
     var debug_create_info: c.VkDebugUtilsMessengerCreateInfoEXT = undefined;
     if (config.enable_validation_layers) {
@@ -35,7 +35,6 @@ pub fn create_instance(extensions: [][*c]const u8) !c.VkInstance {
         inst_info.pNext = @ptrCast(&debug_create_info);
     } else {
         inst_info.enabledLayerCount = 0;
-        inst_info.pNext = null;
     }
 
     var instance: c.VkInstance = undefined;
