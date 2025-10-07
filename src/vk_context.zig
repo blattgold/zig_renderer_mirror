@@ -32,7 +32,7 @@ pub const VkContext = struct {
 
         const debug_messenger = if (config.enable_validation_layers) try v_layers.create_debug_messenger(vk_instance) else null;
 
-        const physical_device_result = try VkContext.create_physical_device_and_queue_indices(vk_instance);
+        const physical_device_result = try VkContext.get_physical_device_and_queue_indices(vk_instance);
         const physical_device = physical_device_result.physical_device;
         const queue_indices = physical_device_result.indices;
 
@@ -85,7 +85,7 @@ pub const VkContext = struct {
         return device;
     }
 
-    fn create_physical_device_and_queue_indices(instance: c.VkInstance) !p_device_mod.PDeviceResult {
+    fn get_physical_device_and_queue_indices(instance: c.VkInstance) !p_device_mod.PDeviceResult {
         const physical_devices = try p_device_mod.find_physical_devices(allocator, instance);
         defer allocator.free(physical_devices);
         return try p_device_mod.select_suitable_physical_device(physical_devices);
