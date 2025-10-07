@@ -18,12 +18,16 @@ const allocator = std.heap.page_allocator;
 
 pub const VkContext = struct {
     vk_instance: c.VkInstance,
-    debug_messenger: ?c.VkDebugUtilsMessengerEXT,
+    debug_messenger: c.VkDebugUtilsMessengerEXT,
     device: c.VkDevice,
     graphics_queue: c.VkQueue,
 
-    pub fn init() !VkContext {
-        const vk_instance = try VkContext.create_vk_instance();
+    pub fn init(required_extensions: *ArrayList([*c]const u8)) !VkContext {
+        if (config.enable_validation_layers)
+            try required_extensions.append(allocator, c.VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+
+        const vk_instance = try VkContext.create_vk_instance(required_extensions);
+
         const debug_messenger = if (config.enable_validation_layers) try v_layers.create_debug_messenger(vk_instance) else null;
 
         const physical_device_result = try VkContext.create_physical_device_and_queue_indices(vk_instance);
@@ -44,7 +48,7 @@ pub const VkContext = struct {
     pub fn deinit(self: @This()) void {
         c.vkDestroyDevice(self.device, null);
         if (self.debug_messenger != null) {
-            v_layers.destroy_debug_utils_messenger_ext(self.vk_instance, self.debug_messenger.?, null);
+            v_layers.destroy_debug_utils_messenger_ext(self.vk_instance, self.debug_messenger, null);
         }
         c.vkDestroyInstance(self.vk_instance, null);
     }
@@ -71,26 +75,17 @@ pub const VkContext = struct {
         return try p_device_mod.select_suitable_physical_device(physical_devices);
     }
 
-    fn create_vk_instance() !c.VkInstance {
-        const extensions = try VkContext.get_required_extensions();
-        const instance = try instance_mod.create_instance(extensions);
+    fn create_vk_instance(required_extensions: *std.ArrayList([*c]const u8)) !c.VkInstance {
+        const required_extensions_slice = try required_extensions.toOwnedSlice(allocator);
+        logger.log(.Debug, "required extensions: {any}", .{required_extensions_slice});
+
+        const instance = try instance_mod.create_instance(required_extensions_slice);
+        defer allocator.free(required_extensions_slice);
+
         logger.log(.Debug, "Instance created successfully: 0x{x}", .{@intFromPtr(instance)});
         if (config.enable_validation_layers)
             logger.log(.Debug, "enabled validation layers: {any}", .{config.validation_layers});
 
         return instance;
-    }
-
-    fn get_required_extensions() ![][*c]const u8 {
-        var extension_count_sdl: u32 = undefined;
-        const extensions_sdl = c.SDL_Vulkan_GetInstanceExtensions(&extension_count_sdl);
-
-        var extensions: ArrayList([*c]const u8) = .{};
-        try extensions.appendSlice(allocator, extensions_sdl[0..extension_count_sdl]);
-
-        if (config.enable_validation_layers)
-            try extensions.append(allocator, c.VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-
-        return try extensions.toOwnedSlice(allocator);
     }
 };
