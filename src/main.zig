@@ -38,6 +38,9 @@ pub fn main() !void {
     const extensions = try get_required_extensions(allocator);
     const instance = try instance_mod.create_instance(extensions);
     logger.log(.Debug, "Instance created successfully: 0x{x}", .{@intFromPtr(instance)});
+    if (config.enable_validation_layers)
+        logger.log(.Debug, "enabled validation layers: {any}", .{config.validation_layers});
+
     allocator.free(extensions);
     defer c.vkDestroyInstance(instance, null);
 

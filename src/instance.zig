@@ -1,7 +1,6 @@
 const common = @import("common.zig");
 const config = @import("config.zig");
 const v_layers = @import("v_layers.zig");
-const logger = @import("logger.zig");
 
 const c = common.c;
 
@@ -34,8 +33,6 @@ pub fn create_instance(extensions: [][*c]const u8) !c.VkInstance {
 
         debug_create_info = v_layers.create_debug_utils_messenger_create_info_ext();
         inst_info.pNext = @ptrCast(&debug_create_info);
-
-        logger.log(.Debug, "enabled validation layers: {any}", .{config.validation_layers});
     } else {
         inst_info.enabledLayerCount = 0;
         inst_info.pNext = null;
