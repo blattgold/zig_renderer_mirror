@@ -47,13 +47,13 @@ pub fn select_suitable_physical_device(
 ) !PDeviceResult {
     const allocator = std.heap.page_allocator;
 
-    var selected_physical_device: c.VkPhysicalDevice = undefined;
-    var selected_indices: ?QueueFamilyIndices = undefined;
+    var selected_physical_device: c.VkPhysicalDevice = null;
+    var selected_indices: ?QueueFamilyIndices = null;
 
     for (physical_devices) |physical_device| {
         const queue_families = try find_queue_families(allocator, physical_device);
         defer allocator.free(queue_families);
-        const indices = try select_queue_family_indices(queue_families);
+        const indices = select_queue_family_indices(queue_families);
 
         if (indices != null) {
             selected_physical_device = physical_device;
@@ -91,7 +91,7 @@ pub fn find_queue_families(
     return queue_families;
 }
 
-pub fn select_queue_family_indices(queue_families: []c.VkQueueFamilyProperties) !?QueueFamilyIndices {
+pub fn select_queue_family_indices(queue_families: []c.VkQueueFamilyProperties) ?QueueFamilyIndices {
     var indices_opt: QueueFamilyIndicesOpt = undefined;
 
     for (queue_families, 0..) |queue_family, i| {
@@ -105,9 +105,6 @@ pub fn select_queue_family_indices(queue_families: []c.VkQueueFamilyProperties) 
             break;
         }
     }
-
-    if (!indices_opt.is_complete())
-        return VulkanError.NoSuitablePhysicalDevice;
 
     return indices_opt.to_queue_family_indices();
 }
