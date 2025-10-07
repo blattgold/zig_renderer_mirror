@@ -3,7 +3,7 @@ const std = @import("std");
 const config = @import("config.zig");
 const logger = @import("logger.zig");
 const common = @import("common.zig");
-const p_device = @import("p_device.zig");
+const p_device_mod = @import("p_device.zig");
 const v_layers = @import("v_layers.zig");
 const instance_mod = @import("instance.zig");
 const device_mod = @import("device.zig");
@@ -12,6 +12,7 @@ const c = common.c;
 
 const VulkanError = common.VulkanError;
 const ArrayList = std.ArrayList;
+const QueueFamilyIndices = common.QueueFamilyIndices;
 
 /// allocates memory, on you to free it
 fn get_required_extensions(allocator: std.mem.Allocator) ![][*c]const u8 {
@@ -49,11 +50,22 @@ pub fn main() !void {
         v_layers.destroy_debug_utils_messenger_ext(instance, debug_messenger, null)
     else {};
 
-    const p_devices = try p_device.find_physical_devices(allocator, instance);
-    const p_device_result = try p_device.find_suitable_physical_device(p_devices);
-    allocator.free(p_devices);
+    var queue_indices: QueueFamilyIndices = undefined;
+    var p_device: c.VkPhysicalDevice = undefined;
+    {
+        const p_devices = try p_device_mod.find_physical_devices(allocator, instance);
+        defer allocator.free(p_devices);
+        const p_device_result = try p_device_mod.find_suitable_physical_device(p_devices);
 
-    const device = try device_mod.create_logical_device(p_device_result.physical_device, p_device_result.indices);
+        queue_indices = p_device_result.indices;
+        p_device = p_device_result.physical_device;
+    }
+
+    const device = try device_mod.create_logical_device(p_device, queue_indices);
     logger.log(.Debug, "logical device created successfully: 0x{x}", .{@intFromPtr(device)});
     defer c.vkDestroyDevice(device, null);
+
+    var graphics_queue: c.VkQueue = undefined;
+    c.vkGetDeviceQueue(device, queue_indices.graphics_family.?, 0, &graphics_queue);
+    logger.log(.Debug, "Got graphics_queue: 0x{x}", .{@intFromPtr(graphics_queue)});
 }
