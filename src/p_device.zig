@@ -12,6 +12,24 @@ const PDeviceResult = struct {
     physical_device: c.VkPhysicalDevice,
 };
 
+const QueueFamilyIndicesOpt = struct {
+    graphics_family: ?u32,
+
+    fn is_complete(self: @This()) bool {
+        return self.graphics_family != null;
+    }
+
+    fn to_queue_family_indices(self: @This()) ?QueueFamilyIndices {
+        if (self.is_complete()) {
+            return QueueFamilyIndices{
+                .graphics_family = self.graphics_family.?,
+            };
+        } else {
+            return null;
+        }
+    }
+};
+
 /// returns a list with all available physical devices.
 /// physical_device list must be manually freed.
 pub fn find_physical_devices(
@@ -47,7 +65,7 @@ pub fn find_suitable_physical_device(
     const allocator = std.heap.page_allocator;
 
     var device: c.VkPhysicalDevice = undefined;
-    var indices: QueueFamilyIndices = undefined;
+    var indices: ?QueueFamilyIndices = undefined;
 
     for (devices) |d| {
         const d_queue_families = try find_queue_families(allocator, d);
@@ -56,16 +74,16 @@ pub fn find_suitable_physical_device(
 
         if (d_queue_family_indices.is_complete()) {
             device = d;
-            indices = d_queue_family_indices;
+            indices = d_queue_family_indices.to_queue_family_indices();
             break;
         }
     }
 
-    if (device == null)
+    if (device == null or indices == null)
         return VulkanError.NoSuitablePhysicalDevice;
 
     return .{
-        .indices = indices,
+        .indices = indices.?,
         .physical_device = device,
     };
 }
@@ -90,8 +108,8 @@ pub fn find_queue_families(
     return queue_families;
 }
 
-pub fn select_queue_family_indices(queue_families: []c.VkQueueFamilyProperties) !QueueFamilyIndices {
-    var indices: QueueFamilyIndices = undefined;
+pub fn select_queue_family_indices(queue_families: []c.VkQueueFamilyProperties) !QueueFamilyIndicesOpt {
+    var indices: QueueFamilyIndicesOpt = undefined;
 
     for (queue_families, 0..) |queue_family, i| {
         if (queue_family.queueFlags & c.VK_QUEUE_GRAPHICS_BIT != 0) {

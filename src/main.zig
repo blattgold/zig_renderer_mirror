@@ -66,6 +66,6 @@ pub fn main() !void {
     defer c.vkDestroyDevice(device, null);
 
     var graphics_queue: c.VkQueue = undefined;
-    c.vkGetDeviceQueue(device, queue_indices.graphics_family.?, 0, &graphics_queue);
+    c.vkGetDeviceQueue(device, queue_indices.graphics_family, 0, &graphics_queue);
     logger.log(.Debug, "Got graphics_queue: 0x{x}", .{@intFromPtr(graphics_queue)});
 }

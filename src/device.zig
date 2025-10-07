@@ -11,7 +11,7 @@ const QueueFamilyIndices = common.QueueFamilyIndices;
 pub fn create_logical_device(physical_device: c.VkPhysicalDevice, indices: QueueFamilyIndices) !c.VkDevice {
     var queue_create_info: c.VkDeviceQueueCreateInfo = .{};
     queue_create_info.sType = c.VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-    queue_create_info.queueFamilyIndex = indices.graphics_family.?;
+    queue_create_info.queueFamilyIndex = indices.graphics_family;
     queue_create_info.queueCount = 1;
 
     var queue_priority: f32 = 1.0;

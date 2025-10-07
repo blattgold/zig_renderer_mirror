@@ -19,11 +19,7 @@ pub const VulkanError = error{
 };
 
 pub const QueueFamilyIndices = struct {
-    graphics_family: ?u32,
-
-    pub fn is_complete(self: @This()) bool {
-        return self.graphics_family != null;
-    }
+    graphics_family: u32,
 };
 
 pub const c = @cImport({
