@@ -37,6 +37,7 @@ pub fn main() !void {
 
     const extensions = try get_required_extensions(allocator);
     const instance = try instance_mod.create_instance(extensions);
+    logger.log(.Debug, "Instance created successfully: 0x{x}", .{@intFromPtr(instance)});
     allocator.free(extensions);
     defer c.vkDestroyInstance(instance, null);
 
@@ -49,6 +50,7 @@ pub fn main() !void {
     const p_device_result = try p_device.find_suitable_physical_device(p_devices);
     allocator.free(p_devices);
 
-    _ = try device_mod.create_logical_device(p_device_result.physical_device, p_device_result.indices);
-    // defer c.vkDestroyDevice(device, null);
+    const device = try device_mod.create_logical_device(p_device_result.physical_device, p_device_result.indices);
+    logger.log(.Debug, "logical device created successfully: 0x{x}", .{@intFromPtr(device)});
+    defer c.vkDestroyDevice(device, null);
 }

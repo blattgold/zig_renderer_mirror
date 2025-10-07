@@ -45,6 +45,5 @@ pub fn create_instance(extensions: [][*c]const u8) !c.VkInstance {
     if (c.vkCreateInstance(&inst_info, null, &instance) != c.VK_SUCCESS)
         return VulkanError.InstanceCreationFailure;
 
-    logger.log(.Debug, "Instance created successfully", .{});
     return instance;
 }
