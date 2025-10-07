@@ -45,8 +45,10 @@ pub fn main() !void {
         v_layers.destroy_debug_utils_messenger_ext(instance, debug_messenger, null)
     else {};
 
-    const device_result = try p_device.select_physical_device(instance);
+    const p_devices = try p_device.find_physical_devices(allocator, instance);
+    const p_device_result = try p_device.find_suitable_physical_device(p_devices);
+    allocator.free(p_devices);
 
-    _ = try device_mod.create_logical_device(device_result.physical_device, device_result.indices);
+    _ = try device_mod.create_logical_device(p_device_result.physical_device, p_device_result.indices);
     // defer c.vkDestroyDevice(device, null);
 }

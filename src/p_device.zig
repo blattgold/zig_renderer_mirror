@@ -7,11 +7,13 @@ const c = common.c;
 const VulkanError = common.VulkanError;
 const QueueFamilyIndices = common.QueueFamilyIndices;
 
-const ChoosePhysicalDeviceResult = struct {
+const PDeviceResult = struct {
     indices: QueueFamilyIndices,
     physical_device: c.VkPhysicalDevice,
 };
 
+/// returns a list with all available physical devices.
+/// physical_device list must be manually freed.
 pub fn find_physical_devices(
     allocator: std.mem.Allocator,
     instance: c.VkInstance,
@@ -37,18 +39,24 @@ pub fn find_physical_devices(
     return devices;
 }
 
+/// a device is suitable if at least one queue_family exists that has all the necessary capabilites.
+/// return value is a struct that contains QueueFamilyIndices + the PhysicalDevice.
 pub fn find_suitable_physical_device(
     devices: []c.VkPhysicalDevice,
-) !ChoosePhysicalDeviceResult {
+) !PDeviceResult {
+    const allocator = std.heap.page_allocator;
+
     var device: c.VkPhysicalDevice = undefined;
     var indices: QueueFamilyIndices = undefined;
 
     for (devices) |d| {
-        const d_i = try find_queue_family_indices(d);
+        const d_queue_families = try find_queue_families(allocator, d);
+        defer allocator.free(d_queue_families);
+        const d_queue_family_indices = try select_queue_family_indices(d_queue_families);
 
-        if (is_device_suitable(d_i)) {
+        if (d_queue_family_indices.is_complete()) {
             device = d;
-            indices = d_i;
+            indices = d_queue_family_indices;
             break;
         }
     }
@@ -62,32 +70,10 @@ pub fn find_suitable_physical_device(
     };
 }
 
-// helper for find_suitable_physical_device
-fn is_device_suitable(
-    indices: QueueFamilyIndices,
-) bool {
-    return indices.is_complete();
-}
-
-pub fn select_physical_device(instance: c.VkInstance) !ChoosePhysicalDeviceResult {
-    const allocator = std.heap.page_allocator;
-
-    const devices = try find_physical_devices(allocator, instance);
-    defer allocator.free(devices);
-
-    const result = try find_suitable_physical_device(devices);
-
-    logger.log(.Debug, "suitable physical device found: 0x{x}", .{@intFromPtr(result.physical_device)});
-    logger.log(.Debug, "with: graphics_family_i: {}", .{result.indices.graphics_family.?});
-
-    return result;
-}
-
-pub fn find_queue_family_indices(device: c.VkPhysicalDevice) !QueueFamilyIndices {
-    const allocator = std.heap.page_allocator;
-
-    var indices: QueueFamilyIndices = undefined;
-
+pub fn find_queue_families(
+    allocator: std.mem.Allocator,
+    device: c.VkPhysicalDevice,
+) ![]c.VkQueueFamilyProperties {
     var queueFamilyCount: u32 = 0;
     c.vkGetPhysicalDeviceQueueFamilyProperties(
         device,
@@ -96,25 +82,31 @@ pub fn find_queue_family_indices(device: c.VkPhysicalDevice) !QueueFamilyIndices
     );
 
     var queue_families = try allocator.alloc(c.VkQueueFamilyProperties, queueFamilyCount);
-    defer allocator.free(queue_families);
     c.vkGetPhysicalDeviceQueueFamilyProperties(
         device,
         &queueFamilyCount,
         &queue_families[0],
     );
+    return queue_families;
+}
 
-    var i: u32 = 0;
-    for (queue_families) |queue_family| {
+pub fn select_queue_family_indices(queue_families: []c.VkQueueFamilyProperties) !QueueFamilyIndices {
+    var indices: QueueFamilyIndices = undefined;
+
+    for (queue_families, 0..) |queue_family, i| {
         if (queue_family.queueFlags & c.VK_QUEUE_GRAPHICS_BIT != 0) {
-            indices.graphics_family = i;
+            std.debug.assert(i < 2 ^ 32);
+
+            indices.graphics_family = @intCast(i);
         }
 
         if (indices.is_complete()) {
             break;
         }
-
-        i += 1;
     }
+
+    if (!indices.is_complete())
+        return VulkanError.NoSuitablePhysicalDevice;
 
     return indices;
 }
