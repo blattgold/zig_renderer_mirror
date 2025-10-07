@@ -55,7 +55,7 @@ pub fn main() !void {
     {
         const p_devices = try p_device_mod.find_physical_devices(allocator, instance);
         defer allocator.free(p_devices);
-        const p_device_result = try p_device_mod.find_suitable_physical_device(p_devices);
+        const p_device_result = try p_device_mod.select_suitable_physical_device(p_devices);
 
         queue_indices = p_device_result.indices;
         p_device = p_device_result.physical_device;

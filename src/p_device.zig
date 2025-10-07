@@ -6,125 +6,108 @@ const c = common.c;
 
 const VulkanError = common.VulkanError;
 const QueueFamilyIndices = common.QueueFamilyIndices;
+const QueueFamilyIndicesOpt = common.QueueFamilyIndicesOpt;
 
 const PDeviceResult = struct {
     indices: QueueFamilyIndices,
     physical_device: c.VkPhysicalDevice,
 };
 
-const QueueFamilyIndicesOpt = struct {
-    graphics_family: ?u32,
-
-    fn is_complete(self: @This()) bool {
-        return self.graphics_family != null;
-    }
-
-    fn to_queue_family_indices(self: @This()) ?QueueFamilyIndices {
-        if (self.is_complete()) {
-            return QueueFamilyIndices{
-                .graphics_family = self.graphics_family.?,
-            };
-        } else {
-            return null;
-        }
-    }
-};
-
 /// returns a list with all available physical devices.
 /// physical_device list must be manually freed.
 pub fn find_physical_devices(
     allocator: std.mem.Allocator,
-    instance: c.VkInstance,
+    vk_instance: c.VkInstance,
 ) ![]c.VkPhysicalDevice {
-    var device_count: u32 = 0;
+    var physical_device_count: u32 = 0;
     _ = c.vkEnumeratePhysicalDevices(
-        instance,
-        &device_count,
+        vk_instance,
+        &physical_device_count,
         null,
     );
 
-    if (device_count == 0)
+    if (physical_device_count == 0)
         return VulkanError.NoPhysicalDevices;
 
-    var devices = try allocator.alloc(c.VkPhysicalDevice, device_count);
+    var physical_devices = try allocator.alloc(c.VkPhysicalDevice, physical_device_count);
     if (c.vkEnumeratePhysicalDevices(
-        instance,
-        &device_count,
-        &devices[0],
+        vk_instance,
+        &physical_device_count,
+        &physical_devices[0],
     ) != c.VK_SUCCESS)
         return VulkanError.NoPhysicalDevices;
 
-    return devices;
+    return physical_devices;
 }
 
 /// a device is suitable if at least one queue_family exists that has all the necessary capabilites.
 /// return value is a struct that contains QueueFamilyIndices + the PhysicalDevice.
-pub fn find_suitable_physical_device(
-    devices: []c.VkPhysicalDevice,
+pub fn select_suitable_physical_device(
+    physical_devices: []c.VkPhysicalDevice,
 ) !PDeviceResult {
     const allocator = std.heap.page_allocator;
 
-    var device: c.VkPhysicalDevice = undefined;
-    var indices: ?QueueFamilyIndices = undefined;
+    var selected_physical_device: c.VkPhysicalDevice = undefined;
+    var selected_indices: ?QueueFamilyIndices = undefined;
 
-    for (devices) |d| {
-        const d_queue_families = try find_queue_families(allocator, d);
-        defer allocator.free(d_queue_families);
-        const d_queue_family_indices = try select_queue_family_indices(d_queue_families);
+    for (physical_devices) |physical_device| {
+        const queue_families = try find_queue_families(allocator, physical_device);
+        defer allocator.free(queue_families);
+        const indices = try select_queue_family_indices(queue_families);
 
-        if (d_queue_family_indices.is_complete()) {
-            device = d;
-            indices = d_queue_family_indices.to_queue_family_indices();
+        if (indices != null) {
+            selected_physical_device = physical_device;
+            selected_indices = indices;
             break;
         }
     }
 
-    if (device == null or indices == null)
+    if (selected_physical_device == null or selected_indices == null)
         return VulkanError.NoSuitablePhysicalDevice;
 
     return .{
-        .indices = indices.?,
-        .physical_device = device,
+        .indices = selected_indices.?,
+        .physical_device = selected_physical_device,
     };
 }
 
 pub fn find_queue_families(
     allocator: std.mem.Allocator,
-    device: c.VkPhysicalDevice,
+    physical_device: c.VkPhysicalDevice,
 ) ![]c.VkQueueFamilyProperties {
     var queueFamilyCount: u32 = 0;
     c.vkGetPhysicalDeviceQueueFamilyProperties(
-        device,
+        physical_device,
         &queueFamilyCount,
         null,
     );
 
     var queue_families = try allocator.alloc(c.VkQueueFamilyProperties, queueFamilyCount);
     c.vkGetPhysicalDeviceQueueFamilyProperties(
-        device,
+        physical_device,
         &queueFamilyCount,
         &queue_families[0],
     );
     return queue_families;
 }
 
-pub fn select_queue_family_indices(queue_families: []c.VkQueueFamilyProperties) !QueueFamilyIndicesOpt {
-    var indices: QueueFamilyIndicesOpt = undefined;
+pub fn select_queue_family_indices(queue_families: []c.VkQueueFamilyProperties) !?QueueFamilyIndices {
+    var indices_opt: QueueFamilyIndicesOpt = undefined;
 
     for (queue_families, 0..) |queue_family, i| {
         if (queue_family.queueFlags & c.VK_QUEUE_GRAPHICS_BIT != 0) {
             std.debug.assert(i < 2 ^ 32);
 
-            indices.graphics_family = @intCast(i);
+            indices_opt.graphics_family = @intCast(i);
         }
 
-        if (indices.is_complete()) {
+        if (indices_opt.is_complete()) {
             break;
         }
     }
 
-    if (!indices.is_complete())
+    if (!indices_opt.is_complete())
         return VulkanError.NoSuitablePhysicalDevice;
 
-    return indices;
+    return indices_opt.to_queue_family_indices();
 }
