@@ -1,5 +1,6 @@
 const std = @import("std");
 const common = @import("common.zig");
+const config = @import("config.zig");
 const vk_context_mod = @import("vk_context.zig");
 
 const c = common.c;
@@ -21,10 +22,15 @@ fn get_required_extensions() !ArrayList([*c]const u8) {
 pub fn main() !void {
     _ = c.SDL_Init(c.SDL_INIT_VIDEO);
     _ = c.SDL_Vulkan_LoadLibrary(null);
-    //const window: ?*c.SDL_Window = c.SDL_CreateWindow(APP_NAME, W_WIDTH, W_HEIGHT, c.SDL_WINDOW_VULKAN);
+    const window: ?*c.SDL_Window = c.SDL_CreateWindow(config.app_name, config.w_width, config.w_height, c.SDL_WINDOW_VULKAN);
     var required_extensions = try get_required_extensions();
 
     var vk_context = try vk_context_mod.VkContext.init(&required_extensions);
+
+    var vk_surface: c.VkSurfaceKHR = undefined;
+    _ = c.SDL_Vulkan_CreateSurface(window, vk_context.vk_instance, null, &vk_surface);
+    vk_context.init_surface(vk_surface);
+
     vk_context.deinit();
     c.SDL_Quit();
 }

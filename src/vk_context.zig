@@ -22,6 +22,8 @@ pub const VkContext = struct {
     device: c.VkDevice,
     graphics_queue: c.VkQueue,
 
+    vk_surface: c.VkSurfaceKHR,
+
     pub fn init(required_extensions: *ArrayList([*c]const u8)) !VkContext {
         if (config.enable_validation_layers)
             try required_extensions.append(allocator, c.VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
@@ -42,10 +44,15 @@ pub const VkContext = struct {
             .debug_messenger = debug_messenger,
             .device = device,
             .graphics_queue = graphics_queue,
+
+            .vk_surface = null,
         };
     }
 
     pub fn deinit(self: @This()) void {
+        if (self.vk_surface != null) {
+            c.vkDestroySurfaceKHR(self.vk_instance, self.vk_surface, null);
+        }
         c.vkDestroyDevice(self.device, null);
         if (self.debug_messenger != null) {
             v_layers.destroy_debug_utils_messenger_ext(self.vk_instance, self.debug_messenger, null);
@@ -53,10 +60,19 @@ pub const VkContext = struct {
         c.vkDestroyInstance(self.vk_instance, null);
     }
 
+    pub fn init_surface(self: *@This(), surface: c.VkSurfaceKHR) void {
+        if (self.vk_surface == null) {
+            logger.log(.Debug, "initialized surface: 0x{x}", .{@intFromPtr(surface)});
+            self.vk_surface = surface;
+        } else {
+            logger.log(.Warn, "attempted to initialize surface after it has been already initialized, ignoring.", .{});
+        }
+    }
+
     fn get_graphics_queue(device: c.VkDevice, graphics_family_index: u32) c.VkQueue {
         var graphics_queue: c.VkQueue = undefined;
         c.vkGetDeviceQueue(device, graphics_family_index, 0, &graphics_queue);
-        logger.log(.Debug, "Got graphics_queue: 0x{x}", .{@intFromPtr(graphics_queue)});
+        logger.log(.Debug, "graphics queue: 0x{x}", .{@intFromPtr(graphics_queue)});
         return graphics_queue;
     }
 
