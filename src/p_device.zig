@@ -8,7 +8,7 @@ const VulkanError = common.VulkanError;
 const QueueFamilyIndices = common.QueueFamilyIndices;
 const QueueFamilyIndicesOpt = common.QueueFamilyIndicesOpt;
 
-const PDeviceResult = struct {
+pub const PDeviceResult = struct {
     indices: QueueFamilyIndices,
     physical_device: c.VkPhysicalDevice,
 };

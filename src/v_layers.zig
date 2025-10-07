@@ -100,7 +100,7 @@ pub fn create_debug_utils_messenger_create_info_ext() c.VkDebugUtilsMessengerCre
     };
 }
 
-pub fn setup_debug_messenger(instance: c.VkInstance) !c.VkDebugUtilsMessengerEXT {
+pub fn create_debug_messenger(instance: c.VkInstance) !c.VkDebugUtilsMessengerEXT {
     var info = create_debug_utils_messenger_create_info_ext();
     var debug_messenger: c.VkDebugUtilsMessengerEXT = undefined;
     if (create_debug_utils_messenger_ext(instance, &info, null, &debug_messenger) != c.VK_SUCCESS)
