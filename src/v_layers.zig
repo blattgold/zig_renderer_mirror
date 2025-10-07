@@ -101,8 +101,6 @@ pub fn populate_debug_messeneger_create_info(info: *c.VkDebugUtilsMessengerCreat
 }
 
 pub fn setup_debug_messenger(instance: c.VkInstance) !c.VkDebugUtilsMessengerEXT {
-    if (!config.enable_validation_layers) return;
-
     var info: c.VkDebugUtilsMessengerCreateInfoEXT = undefined;
     populate_debug_messeneger_create_info(&info);
 
