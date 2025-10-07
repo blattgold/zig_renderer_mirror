@@ -85,25 +85,23 @@ pub fn destroy_debug_utils_messenger_ext(
     }
 }
 
-pub fn populate_debug_messeneger_create_info(info: *c.VkDebugUtilsMessengerCreateInfoEXT) void {
-    info.flags = 0;
-    info.sType = c.VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
-    info.messageSeverity =
-        c.VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
-        c.VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
-        c.VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
-    info.messageType =
-        c.VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
-        c.VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
-        c.VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
-    info.pfnUserCallback = debug_callback;
-    info.pUserData = null; // custom data to pass to callback
+pub fn create_debug_utils_messenger_create_info_ext() c.VkDebugUtilsMessengerCreateInfoEXT {
+    return c.VkDebugUtilsMessengerCreateInfoEXT{
+        .flags = 0,
+        .sType = c.VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
+        .messageSeverity = c.VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
+            c.VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
+            c.VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT,
+        .messageType = c.VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
+            c.VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
+            c.VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT,
+        .pfnUserCallback = debug_callback,
+        .pUserData = null, // custom user data pointer
+    };
 }
 
 pub fn setup_debug_messenger(instance: c.VkInstance) !c.VkDebugUtilsMessengerEXT {
-    var info: c.VkDebugUtilsMessengerCreateInfoEXT = undefined;
-    populate_debug_messeneger_create_info(&info);
-
+    var info = create_debug_utils_messenger_create_info_ext();
     var debug_messenger: c.VkDebugUtilsMessengerEXT = undefined;
     if (create_debug_utils_messenger_ext(instance, &info, null, &debug_messenger) != c.VK_SUCCESS)
         return VulkanError.SetupDebugMessengerFailure;

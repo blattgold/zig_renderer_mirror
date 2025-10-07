@@ -27,12 +27,12 @@ pub fn create_instance(extensions: [][*c]const u8) !c.VkInstance {
     inst_info.enabledExtensionCount = @intCast(extensions.len);
     inst_info.ppEnabledExtensionNames = extensions.ptr;
 
-    var debug_create_info: c.VkDebugUtilsMessengerCreateInfoEXT = .{};
+    var debug_create_info: c.VkDebugUtilsMessengerCreateInfoEXT = undefined;
     if (config.enable_validation_layers) {
         inst_info.enabledLayerCount = config.validation_layers.len;
         inst_info.ppEnabledLayerNames = @ptrCast(config.validation_layers.ptr);
 
-        v_layers.populate_debug_messeneger_create_info(&debug_create_info);
+        debug_create_info = v_layers.create_debug_utils_messenger_create_info_ext();
         inst_info.pNext = @ptrCast(&debug_create_info);
 
         logger.log(.Debug, "enabled validation layers: {any}", .{config.validation_layers});
