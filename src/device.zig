@@ -1,6 +1,7 @@
 const common = @import("common.zig");
 const v_layers = @import("v_layers.zig");
 const config = @import("config.zig");
+const logger = @import("logger.zig");
 
 const c = common.c;
 
@@ -37,6 +38,8 @@ pub fn create_logical_device(physical_device: c.VkPhysicalDevice, indices: Queue
     var device: c.VkDevice = undefined;
     if (c.vkCreateDevice(physical_device, &device_create_info, null, &device) != c.VK_SUCCESS)
         return VulkanError.CreateDeviceFailure;
+
+    logger.log(.Debug, "device created successfully: 0x{x}", .{@intFromPtr(device)});
 
     return device;
 }
