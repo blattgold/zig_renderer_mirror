@@ -96,7 +96,7 @@ pub fn select_queue_family_indices(queue_families: []c.VkQueueFamilyProperties) 
 
     for (queue_families, 0..) |queue_family, i| {
         if (queue_family.queueFlags & c.VK_QUEUE_GRAPHICS_BIT != 0) {
-            std.debug.assert(i < 2 ^ 32);
+            std.debug.assert(i < 4294967296);
 
             indices_opt.graphics_family = @intCast(i);
         }
