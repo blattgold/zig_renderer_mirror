@@ -3,7 +3,6 @@ const std = @import("std");
 const config = @import("config.zig");
 const logger = @import("logger.zig");
 const common = @import("common.zig");
-const p_device_mod = @import("p_device.zig");
 const v_layers = @import("v_layers.zig");
 const instance_mod = @import("instance.zig");
 const device_mod = @import("device.zig");
@@ -15,6 +14,8 @@ const ArrayList = std.ArrayList;
 const QueueFamilyIndices = common.QueueFamilyIndices;
 const WindowFrameBufferSize = common.WindowFrameBufferSize;
 const SwapChainSupportDetails = common.SwapChainSupportDetails;
+
+const PhysicalDeviceResult = device_mod.PhysicalDeviceResult;
 
 const allocator = std.heap.page_allocator;
 
@@ -37,13 +38,13 @@ pub const VkContextIncompleteInit = struct {
         const graphics_queue = get_graphics_queue(device, queue_family_indices.graphics_family);
         const present_queue = get_present_queue(device, queue_family_indices.present_family);
 
-        const swap_chain_support_details = try p_device_mod.query_swapchain_support_details(
+        const swap_chain_support_details = try device_mod.query_swapchain_support_details(
             allocator,
             physical_device,
             vk_surface,
         );
 
-        const swap_chain = try p_device_mod.create_swap_chain(
+        const swap_chain = try device_mod.create_swap_chain(
             device,
             vk_surface,
             swap_chain_support_details,
@@ -150,7 +151,7 @@ fn create_device(
     physical_device: c.VkPhysicalDevice,
     queue_indices: QueueFamilyIndices,
 ) !c.VkDevice {
-    const device = try device_mod.create_logical_device(physical_device, queue_indices);
+    const device = try device_mod.create_device(physical_device, queue_indices);
     logger.log(.Debug, "logical device created successfully: 0x{x}", .{@intFromPtr(device)});
     return device;
 }
@@ -158,10 +159,10 @@ fn create_device(
 fn get_physical_device_and_queue_indices(
     vk_instance: c.VkInstance,
     vk_surface: c.VkSurfaceKHR,
-) !p_device_mod.PDeviceResult {
-    const physical_devices = try p_device_mod.find_physical_devices(allocator, vk_instance);
+) !PhysicalDeviceResult {
+    const physical_devices = try device_mod.find_physical_devices(allocator, vk_instance);
     defer allocator.free(physical_devices);
-    return try p_device_mod.select_suitable_physical_device(physical_devices, vk_surface);
+    return try device_mod.select_suitable_physical_device(physical_devices, vk_surface);
 }
 
 fn create_vk_instance(required_extensions: *std.ArrayList([*c]const u8)) !c.VkInstance {
