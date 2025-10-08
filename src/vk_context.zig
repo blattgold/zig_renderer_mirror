@@ -27,6 +27,7 @@ pub const VkContextIncompleteInit = struct {
 
         const device = try create_device(physical_device, queue_indices);
         const graphics_queue = get_graphics_queue(device, queue_indices.graphics_family);
+        const present_queue = get_present_queue(device, queue_indices.present_family);
 
         logger.log(.Debug, "VkContext created successfully", .{});
 
@@ -36,6 +37,7 @@ pub const VkContextIncompleteInit = struct {
 
             .device = device,
             .graphics_queue = graphics_queue,
+            .present_queue = present_queue,
 
             .vk_surface = vk_surface,
         };
@@ -46,7 +48,9 @@ pub const VkContext = struct {
     vk_instance: c.VkInstance,
     maybe_debug_messenger: c.VkDebugUtilsMessengerEXT,
     device: c.VkDevice,
+
     graphics_queue: c.VkQueue,
+    present_queue: c.VkQueue,
 
     vk_surface: c.VkSurfaceKHR,
 

@@ -1,3 +1,5 @@
+const std = @import("std");
+
 const common = @import("common.zig");
 const v_layers = @import("v_layers.zig");
 const config = @import("config.zig");
@@ -5,25 +7,46 @@ const logger = @import("logger.zig");
 
 const c = common.c;
 
+const ArrayList = std.ArrayList;
 const VulkanError = common.VulkanError;
 const QueueFamilyIndices = common.QueueFamilyIndices;
 
-pub fn create_logical_device(physical_device: c.VkPhysicalDevice, indices: QueueFamilyIndices) !c.VkDevice {
-    var queue_create_info: c.VkDeviceQueueCreateInfo = .{};
-    queue_create_info.sType = c.VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-    queue_create_info.queueFamilyIndex = indices.graphics_family;
-    queue_create_info.queueCount = 1;
+const allocator = std.heap.page_allocator;
 
+pub fn create_logical_device(physical_device: c.VkPhysicalDevice, indices: QueueFamilyIndices) !c.VkDevice {
+    var queue_create_infos: ArrayList(c.VkDeviceQueueCreateInfo) = .{};
+    defer queue_create_infos.clearAndFree(allocator);
     var queue_priority: f32 = 1.0;
-    queue_create_info.pQueuePriorities = &queue_priority;
+
+    // graphics family
+    {
+        const queue_create_info: c.VkDeviceQueueCreateInfo = .{
+            .sType = c.VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+            .queueFamilyIndex = indices.graphics_family,
+            .queueCount = 1,
+            .pQueuePriorities = &queue_priority,
+        };
+        try queue_create_infos.append(allocator, queue_create_info);
+    }
+
+    // present family
+    {
+        const queue_create_info: c.VkDeviceQueueCreateInfo = .{
+            .sType = c.VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+            .queueFamilyIndex = indices.present_family,
+            .queueCount = 1,
+            .pQueuePriorities = &queue_priority,
+        };
+        try queue_create_infos.append(allocator, queue_create_info);
+    }
 
     var features: c.VkPhysicalDeviceFeatures = .{};
 
     var device_create_info = c.VkDeviceCreateInfo{
         .sType = c.VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-        .pQueueCreateInfos = &queue_create_info,
+        .pQueueCreateInfos = queue_create_infos.items.ptr,
         .pEnabledFeatures = &features,
-        .queueCreateInfoCount = 1,
+        .queueCreateInfoCount = @intCast(queue_create_infos.items.len),
         .enabledExtensionCount = 0,
     };
 
