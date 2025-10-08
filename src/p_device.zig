@@ -9,6 +9,7 @@ const ArrayList = std.ArrayList;
 const VulkanError = common.VulkanError;
 const QueueFamilyIndices = common.QueueFamilyIndices;
 const QueueFamilyIndicesOpt = common.QueueFamilyIndicesOpt;
+const SwapChainSupportDetails = common.SwapChainSupportDetails;
 
 pub const PDeviceResult = struct {
     indices: QueueFamilyIndices,
@@ -169,4 +170,29 @@ pub fn select_queue_family_indices(
     }
 
     return indices_opt.to_queue_family_indices();
+}
+
+/// alloctes memory, details has to be manually deallocated after use.
+pub fn query_swapchain_support_details(
+    allocator: std.mem.Allocator,
+    physical_device: c.VkPhysicalDevice,
+    vk_surface: c.VkSurfaceKHR,
+) !SwapChainSupportDetails {
+    var details: SwapChainSupportDetails = undefined;
+
+    // formats
+    {
+        var format_count: u32 = undefined;
+        if (c.vkGetPhysicalDeviceSurfaceFormatsKHR(physical_device, vk_surface, &format_count, null) != c.VK_SUCCESS)
+            return VulkanError.SwapChainSupportDetailsQueryFailure;
+
+        if (format_count < 1)
+            return VulkanError.SwapChainSupportDetailsQueryFailure;
+
+        details.formats = try allocator.alloc(c.VkSurfaceFormatKHR, format_count);
+        if (c.vkGetPhysicalDeviceSurfaceFormatsKHR(physical_device, vk_surface, &format_count, details.formats.ptr) != c.VK_SUCCESS)
+            return VulkanError.SwapChainSupportDetailsQueryFailure;
+    }
+
+    return details;
 }

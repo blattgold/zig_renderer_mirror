@@ -16,6 +16,8 @@ pub const VulkanError = error{
     GetRequiredExtensionsFailure,
     EnableValidationLayersFailure,
     SetupDebugMessengerFailure,
+
+    SwapChainSupportDetailsQueryFailure,
 };
 
 pub const QueueFamilyIndices = struct {
@@ -41,6 +43,12 @@ pub const QueueFamilyIndicesOpt = struct {
             return null;
         }
     }
+};
+
+pub const SwapChainSupportDetails = struct {
+    capabilities: c.VkSurfaceCapabilitiesKHR,
+    formats: []c.VkSurfaceFormatKHR,
+    present_modes: []c.VkPresentModeKHR,
 };
 
 pub const c = @cImport({
