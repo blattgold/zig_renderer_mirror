@@ -67,12 +67,12 @@ pub fn select_suitable_physical_device(
             vk_surface,
         );
 
-        const is_suitable =
+        const physical_device_suitable =
             indices != null and
-            try supports_required_device_extensions(physical_device) and
-            query_swapchain_support_details(allocator, physical_device, vk_surface) != VulkanError.SwapChainSupportDetailsQueryFailure;
+            try supports_required_extensions(physical_device) and
+            try swap_chain_suitable(allocator, physical_device, vk_surface);
 
-        if (is_suitable) {
+        if (physical_device_suitable) {
             selected_physical_device = physical_device;
             selected_indices = indices;
             break;
@@ -89,8 +89,19 @@ pub fn select_suitable_physical_device(
 }
 
 /// helper for select_suitable_physical_device
+fn swap_chain_suitable(
+    allocator: std.mem.Allocator,
+    physical_device: c.VkPhysicalDevice,
+    vk_surface: c.VkSurfaceKHR,
+) !bool {
+    const details = query_swapchain_support_details(allocator, physical_device, vk_surface) catch return false;
+    try details.deinit(allocator);
+    return true;
+}
+
+/// helper for select_suitable_physical_device
 /// returns true if all the required extensions are supported
-fn supports_required_device_extensions(physical_device: c.VkPhysicalDevice) !bool {
+fn supports_required_extensions(physical_device: c.VkPhysicalDevice) !bool {
     const allocator = std.heap.page_allocator;
 
     var extension_count: u32 = undefined;
