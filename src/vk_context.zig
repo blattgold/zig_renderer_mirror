@@ -29,8 +29,6 @@ pub const VkContextIncompleteInit = struct {
         const graphics_queue = get_graphics_queue(device, queue_indices.graphics_family);
         const present_queue = get_present_queue(device, queue_indices.present_family);
 
-        _ = try p_device_mod.query_swapchain_support_details(allocator, physical_device, vk_surface);
-
         logger.log(.Debug, "VkContext created successfully", .{});
 
         return VkContext{

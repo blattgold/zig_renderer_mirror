@@ -1,3 +1,5 @@
+const std = @import("std");
+
 pub const LogLevel = enum(u2) {
     Debug,
     Info,
@@ -49,6 +51,11 @@ pub const SwapChainSupportDetails = struct {
     capabilities: c.VkSurfaceCapabilitiesKHR,
     formats: []c.VkSurfaceFormatKHR,
     present_modes: []c.VkPresentModeKHR,
+
+    pub fn deinit(self: @This(), allocator: std.mem.Allocator) !void {
+        allocator.free(self.formats);
+        allocator.free(self.present_modes);
+    }
 };
 
 pub const c = @cImport({

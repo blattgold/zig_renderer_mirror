@@ -46,6 +46,7 @@ pub fn find_physical_devices(
 /// a device is suitable if:
 /// - at least one queue_family exists that has all the necessary capabilites.
 /// - it supports all the required device extensions defined in config.device_extensions
+/// - querying swapchain details succeeds (vk function calls succeed and neither formats nor present modes are empty)
 ///
 /// return value is a struct that contains QueueFamilyIndices + the PhysicalDevice.
 pub fn select_suitable_physical_device(
@@ -66,7 +67,11 @@ pub fn select_suitable_physical_device(
             vk_surface,
         );
 
-        const is_suitable = indices != null and try supports_required_device_extensions(physical_device);
+        const is_suitable =
+            indices != null and
+            try supports_required_device_extensions(physical_device) and
+            query_swapchain_support_details(allocator, physical_device, vk_surface) != VulkanError.SwapChainSupportDetailsQueryFailure;
+
         if (is_suitable) {
             selected_physical_device = physical_device;
             selected_indices = indices;
@@ -173,12 +178,20 @@ pub fn select_queue_family_indices(
 }
 
 /// alloctes memory, details has to be manually deallocated after use.
+///
+/// returns an error if:
+/// - vulkan function call fails
+/// - format_count or present_mode_count is less than 1
 pub fn query_swapchain_support_details(
     allocator: std.mem.Allocator,
     physical_device: c.VkPhysicalDevice,
     vk_surface: c.VkSurfaceKHR,
 ) !SwapChainSupportDetails {
     var details: SwapChainSupportDetails = undefined;
+
+    // capabilities
+    if (c.vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical_device, vk_surface, &details.capabilities) != c.VK_SUCCESS)
+        return VulkanError.SwapChainSupportDetailsQueryFailure;
 
     // formats
     {
@@ -190,8 +203,26 @@ pub fn query_swapchain_support_details(
             return VulkanError.SwapChainSupportDetailsQueryFailure;
 
         details.formats = try allocator.alloc(c.VkSurfaceFormatKHR, format_count);
-        if (c.vkGetPhysicalDeviceSurfaceFormatsKHR(physical_device, vk_surface, &format_count, details.formats.ptr) != c.VK_SUCCESS)
+        if (c.vkGetPhysicalDeviceSurfaceFormatsKHR(physical_device, vk_surface, &format_count, details.formats.ptr) != c.VK_SUCCESS) {
+            allocator.free(details.formats);
             return VulkanError.SwapChainSupportDetailsQueryFailure;
+        }
+    }
+
+    // present modes
+    {
+        var present_mode_count: u32 = undefined;
+        if (c.vkGetPhysicalDeviceSurfacePresentModesKHR(physical_device, vk_surface, &present_mode_count, null) != c.VK_SUCCESS)
+            return VulkanError.SwapChainSupportDetailsQueryFailure;
+
+        if (present_mode_count < 1)
+            return VulkanError.SwapChainSupportDetailsQueryFailure;
+
+        details.present_modes = try allocator.alloc(c.VkPresentModeKHR, present_mode_count);
+        if (c.vkGetPhysicalDeviceSurfacePresentModesKHR(physical_device, vk_surface, &present_mode_count, details.present_modes.ptr) != c.VK_SUCCESS) {
+            allocator.free(details.present_modes);
+            return VulkanError.SwapChainSupportDetailsQueryFailure;
+        }
     }
 
     return details;
