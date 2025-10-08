@@ -71,7 +71,7 @@ pub fn select_suitable_physical_device(
         const physical_device_suitable =
             indices != null and
             try supports_required_extensions(physical_device) and
-            try swap_chain_suitable(allocator, physical_device, vk_surface);
+            swap_chain_suitable(allocator, physical_device, vk_surface);
 
         if (physical_device_suitable) {
             selected_physical_device = physical_device;
@@ -94,9 +94,9 @@ fn swap_chain_suitable(
     allocator: std.mem.Allocator,
     physical_device: c.VkPhysicalDevice,
     vk_surface: c.VkSurfaceKHR,
-) !bool {
+) bool {
     const details = query_swapchain_support_details(allocator, physical_device, vk_surface) catch return false;
-    try details.deinit(allocator);
+    details.deinit(allocator);
     return true;
 }
 
@@ -293,4 +293,73 @@ pub fn choose_swap_extent(
 
         return actual_extent;
     }
+}
+
+pub fn create_swap_chain(
+    physical_device: c.VkPhysicalDevice,
+    device: c.VkDevice,
+    vk_surface: c.VkSurfaceKHR,
+    window_frame_buffer_size: WindowFrameBufferSize,
+    queue_family_indices: QueueFamilyIndices,
+) !c.VkSwapchainKHR {
+    const allocator = std.heap.page_allocator;
+
+    const swap_chain_support_details: SwapChainSupportDetails = try query_swapchain_support_details(allocator, physical_device, vk_surface);
+    defer swap_chain_support_details.deinit(allocator);
+
+    const surface_format = choose_swap_surface_format(swap_chain_support_details.formats);
+    const present_mode = choose_swap_present_mode(swap_chain_support_details.present_modes);
+    const extent = choose_swap_extent(
+        swap_chain_support_details.capabilities,
+        window_frame_buffer_size,
+    );
+    logger.log(.Debug, "swap chain extent: {d}x{d}", .{ extent.width, extent.height });
+
+    var image_count = swap_chain_support_details.capabilities.minImageCount + 1;
+    if (swap_chain_support_details.capabilities.maxImageCount > 0 and
+        image_count > swap_chain_support_details.capabilities.maxImageCount)
+        image_count = swap_chain_support_details.capabilities.maxImageCount;
+
+    logger.log(.Debug, "swap chain min image count: {d}", .{image_count});
+
+    var indices: [2]u32 = .{
+        queue_family_indices.graphics_family,
+        queue_family_indices.present_family,
+    };
+
+    var swap_chain_create_info: c.VkSwapchainCreateInfoKHR = .{
+        .sType = c.VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
+        .surface = vk_surface,
+
+        .minImageCount = image_count,
+        .imageFormat = surface_format.format,
+        .imageColorSpace = surface_format.colorSpace,
+        .imageExtent = extent,
+        .imageArrayLayers = 1,
+        .imageUsage = c.VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+
+        .preTransform = swap_chain_support_details.capabilities.currentTransform,
+        .compositeAlpha = c.VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
+        .presentMode = present_mode,
+        .clipped = c.VK_TRUE,
+        .oldSwapchain = null,
+    };
+
+    if (queue_family_indices.graphics_family != queue_family_indices.present_family) {
+        logger.log(.Debug, "swap chain mode: VK_SHARING_MODE_CONCURRENT", .{});
+        swap_chain_create_info.imageSharingMode = c.VK_SHARING_MODE_CONCURRENT;
+        swap_chain_create_info.queueFamilyIndexCount = @intCast(indices.len);
+        swap_chain_create_info.pQueueFamilyIndices = @ptrCast(indices[0..]);
+    } else {
+        logger.log(.Debug, "swap chain mode: VK_SHARING_MODE_EXCLUSIVE", .{});
+        swap_chain_create_info.imageSharingMode = c.VK_SHARING_MODE_EXCLUSIVE;
+    }
+
+    var swap_chain: c.VkSwapchainKHR = undefined;
+    if (c.vkCreateSwapchainKHR(device, &swap_chain_create_info, null, &swap_chain) != c.VK_SUCCESS)
+        return VulkanError.SwapChainCreateFailure;
+
+    logger.log(.Debug, "successfully created swap chain", .{});
+
+    return swap_chain;
 }

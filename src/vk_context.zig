@@ -26,13 +26,23 @@ pub const VkContextIncompleteInit = struct {
         vk_surface: c.VkSurfaceKHR,
         window_frame_buffer_size: WindowFrameBufferSize,
     ) !VkContext {
+        std.debug.assert(vk_surface != null);
+
         const physical_device_result = try get_physical_device_and_queue_indices(self.vk_instance, vk_surface);
         const physical_device = physical_device_result.physical_device;
-        const queue_indices = physical_device_result.indices;
+        const queue_family_indices = physical_device_result.indices;
 
-        const device = try create_device(physical_device, queue_indices);
-        const graphics_queue = get_graphics_queue(device, queue_indices.graphics_family);
-        const present_queue = get_present_queue(device, queue_indices.present_family);
+        const device = try create_device(physical_device, queue_family_indices);
+        const graphics_queue = get_graphics_queue(device, queue_family_indices.graphics_family);
+        const present_queue = get_present_queue(device, queue_family_indices.present_family);
+
+        const swap_chain = try p_device_mod.create_swap_chain(
+            physical_device,
+            device,
+            vk_surface,
+            window_frame_buffer_size,
+            queue_family_indices,
+        );
 
         logger.log(.Debug, "VkContext created successfully", .{});
 
@@ -40,12 +50,13 @@ pub const VkContextIncompleteInit = struct {
             .vk_instance = self.vk_instance,
             .maybe_debug_messenger = self.maybe_debug_messenger,
 
-            .device = device,
+            .queue_family_indices = queue_family_indices,
             .graphics_queue = graphics_queue,
             .present_queue = present_queue,
+            .device = device,
 
             .vk_surface = vk_surface,
-            .window_frame_buffer_size = window_frame_buffer_size,
+            .swap_chain = swap_chain,
         };
     }
 };
@@ -53,13 +64,14 @@ pub const VkContextIncompleteInit = struct {
 pub const VkContext = struct {
     vk_instance: c.VkInstance,
     maybe_debug_messenger: c.VkDebugUtilsMessengerEXT,
-    device: c.VkDevice,
 
+    queue_family_indices: QueueFamilyIndices,
     graphics_queue: c.VkQueue,
     present_queue: c.VkQueue,
+    device: c.VkDevice,
 
     vk_surface: c.VkSurfaceKHR,
-    window_frame_buffer_size: WindowFrameBufferSize,
+    swap_chain: c.VkSwapchainKHR,
 
     pub fn init_incomplete(required_extensions: *ArrayList([*c]const u8)) !VkContextIncompleteInit {
         if (config.enable_validation_layers)
@@ -80,9 +92,8 @@ pub const VkContext = struct {
     pub fn deinit(self: @This()) void {
         logger.log(.Debug, "unloading VkContext...", .{});
 
-        if (self.vk_surface != null) {
-            c.vkDestroySurfaceKHR(self.vk_instance, self.vk_surface, null);
-        }
+        c.vkDestroySwapchainKHR(self.device, self.swap_chain, null);
+        c.vkDestroySurfaceKHR(self.vk_instance, self.vk_surface, null);
         c.vkDestroyDevice(self.device, null);
         if (self.maybe_debug_messenger != null) {
             v_layers.destroy_debug_utils_messenger_ext(self.vk_instance, self.maybe_debug_messenger, null);

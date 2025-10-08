@@ -20,6 +20,7 @@ pub const VulkanError = error{
     SetupDebugMessengerFailure,
 
     SwapChainSupportDetailsQueryFailure,
+    SwapChainCreateFailure,
 };
 
 pub const QueueFamilyIndices = struct {
@@ -52,15 +53,15 @@ pub const SwapChainSupportDetails = struct {
     formats: []c.VkSurfaceFormatKHR,
     present_modes: []c.VkPresentModeKHR,
 
-    pub fn deinit(self: @This(), allocator: std.mem.Allocator) !void {
+    pub fn deinit(self: @This(), allocator: std.mem.Allocator) void {
         allocator.free(self.formats);
         allocator.free(self.present_modes);
     }
 };
 
 pub const WindowFrameBufferSize = struct {
-    w: c_int,
-    h: c_int,
+    w: u32,
+    h: u32,
 };
 
 pub const c = @cImport({
