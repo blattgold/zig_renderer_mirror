@@ -47,7 +47,8 @@ pub fn create_logical_device(physical_device: c.VkPhysicalDevice, indices: Queue
         .pQueueCreateInfos = queue_create_infos.items.ptr,
         .pEnabledFeatures = &features,
         .queueCreateInfoCount = @intCast(queue_create_infos.items.len),
-        .enabledExtensionCount = 0,
+        .enabledExtensionCount = @intCast(config.device_extensions.len),
+        .ppEnabledExtensionNames = @ptrCast(config.device_extensions.ptr),
     };
 
     // this is no longer necessary, but it is good to do this for backwards compatability
