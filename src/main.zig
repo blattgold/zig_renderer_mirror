@@ -8,9 +8,11 @@ const c = common.c;
 const ArrayList = std.ArrayList;
 const VkContext = vk_context_mod.VkContext;
 const VkContextIncompleteInit = vk_context_mod.VkContextIncompleteInit;
+const WindowFrameBufferSize = common.WindowFrameBufferSize;
 
 const SDLError = error{
     SDL_InitFailure,
+    SDL_GetWindowSizeInPixelsFailure,
     SDL_Vulkan_LoadLibraryFailure,
     SDL_Vulkan_CreateSurfaceFailure,
 };
@@ -45,7 +47,10 @@ pub fn main() !void {
         if (c.SDL_Vulkan_CreateSurface(window, vk_context_incomplete.vk_instance, null, &vk_surface) == false)
             return SDLError.SDL_Vulkan_CreateSurfaceFailure;
 
-        vk_context = try vk_context_incomplete.init_complete(vk_surface);
+        vk_context = try vk_context_incomplete.init_complete(
+            vk_surface,
+            .{ .h = config.w_height, .w = config.w_width },
+        );
     }
 
     vk_context.deinit();

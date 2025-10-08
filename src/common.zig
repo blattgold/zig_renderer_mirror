@@ -58,6 +58,11 @@ pub const SwapChainSupportDetails = struct {
     }
 };
 
+pub const WindowFrameBufferSize = struct {
+    w: c_int,
+    h: c_int,
+};
+
 pub const c = @cImport({
     @cInclude("SDL3/SDL.h");
     @cInclude("SDL3/SDL_vulkan.h");

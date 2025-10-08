@@ -13,6 +13,7 @@ const c = common.c;
 const VulkanError = common.VulkanError;
 const ArrayList = std.ArrayList;
 const QueueFamilyIndices = common.QueueFamilyIndices;
+const WindowFrameBufferSize = common.WindowFrameBufferSize;
 
 const allocator = std.heap.page_allocator;
 
@@ -20,7 +21,11 @@ pub const VkContextIncompleteInit = struct {
     vk_instance: c.VkInstance,
     maybe_debug_messenger: c.VkDebugUtilsMessengerEXT,
 
-    pub fn init_complete(self: @This(), vk_surface: c.VkSurfaceKHR) !VkContext {
+    pub fn init_complete(
+        self: @This(),
+        vk_surface: c.VkSurfaceKHR,
+        window_frame_buffer_size: WindowFrameBufferSize,
+    ) !VkContext {
         const physical_device_result = try get_physical_device_and_queue_indices(self.vk_instance, vk_surface);
         const physical_device = physical_device_result.physical_device;
         const queue_indices = physical_device_result.indices;
@@ -40,6 +45,7 @@ pub const VkContextIncompleteInit = struct {
             .present_queue = present_queue,
 
             .vk_surface = vk_surface,
+            .window_frame_buffer_size = window_frame_buffer_size,
         };
     }
 };
@@ -53,6 +59,7 @@ pub const VkContext = struct {
     present_queue: c.VkQueue,
 
     vk_surface: c.VkSurfaceKHR,
+    window_frame_buffer_size: WindowFrameBufferSize,
 
     pub fn init_incomplete(required_extensions: *ArrayList([*c]const u8)) !VkContextIncompleteInit {
         if (config.enable_validation_layers)

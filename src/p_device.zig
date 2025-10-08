@@ -10,6 +10,7 @@ const VulkanError = common.VulkanError;
 const QueueFamilyIndices = common.QueueFamilyIndices;
 const QueueFamilyIndicesOpt = common.QueueFamilyIndicesOpt;
 const SwapChainSupportDetails = common.SwapChainSupportDetails;
+const WindowFrameBufferSize = common.WindowFrameBufferSize;
 
 pub const PDeviceResult = struct {
     indices: QueueFamilyIndices,
@@ -237,4 +238,59 @@ pub fn query_swapchain_support_details(
     }
 
     return details;
+}
+
+/// choose preferred format.
+///
+/// if preferred format is unavailable, picks the first one.
+pub fn choose_swap_surface_format(available_formats: []c.VkSurfaceFormatKHR) c.VkSurfaceFormatKHR {
+    std.debug.assert(available_formats.len != 0);
+
+    for (available_formats) |available_format| {
+        if (available_format.format == c.VK_FORMAT_B8G8R8_SRGB and
+            available_format.colorSpace == c.VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
+            return available_format;
+    }
+
+    return available_formats[0];
+}
+/// choose preferred present mode.
+///
+/// if preferred present mode is unavailable, picks c.VK_PRESENT_MODE_FIFO_KHR.
+pub fn choose_swap_present_mode(available_present_modes: []c.VkPresentModeKHR) c.VkPresentModeKHR {
+    for (available_present_modes) |available_present_mode| {
+        if (available_present_mode == c.VK_PRESENT_MODE_MAILBOX_KHR) {
+            return available_present_mode;
+        }
+    }
+
+    // all devices that support Vulkan must support this present mode so it is a nice default.
+    return c.VK_PRESENT_MODE_FIFO_KHR;
+}
+
+pub fn choose_swap_extent(
+    capabilites: c.VkSurfaceCapabilitiesKHR,
+    window_frame_buffer_size: WindowFrameBufferSize,
+) c.VkExtent2D {
+    if (capabilites.currentExtent.width != std.math.maxInt(u32)) {
+        return capabilites.currentExtent;
+    } else {
+        var actual_extent: c.VkExtent2D = .{
+            .height = window_frame_buffer_size.h,
+            .width = window_frame_buffer_size.w,
+        };
+
+        actual_extent.width = std.math.clamp(
+            actual_extent.width,
+            capabilites.minImageExtent.width,
+            capabilites.maxImageExtent.width,
+        );
+        actual_extent.height = std.math.clamp(
+            actual_extent.height,
+            capabilites.minImageExtent.height,
+            capabilites.maxImageExtent.height,
+        );
+
+        return actual_extent;
+    }
 }
