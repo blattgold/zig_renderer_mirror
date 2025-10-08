@@ -28,6 +28,8 @@ pub const VkContextIncompleteInit = struct {
         const device = try VkContext.create_device(physical_device, queue_indices);
         const graphics_queue = VkContext.get_graphics_queue(device, queue_indices.graphics_family);
 
+        logger.log(.Debug, "VkContext created successfully", .{});
+
         return VkContext{
             .vk_instance = self.vk_instance,
             .debug_messenger = self.debug_messenger,
