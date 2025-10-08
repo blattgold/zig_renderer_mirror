@@ -6,6 +6,8 @@ const vk_context_mod = @import("vk_context.zig");
 const c = common.c;
 
 const ArrayList = std.ArrayList;
+const VkContext = vk_context_mod.VkContext;
+const VkContextIncompleteInit = vk_context_mod.VkContextIncompleteInit;
 
 fn get_required_extensions() !ArrayList([*c]const u8) {
     const allocator = std.heap.page_allocator;
@@ -25,11 +27,12 @@ pub fn main() !void {
     const window: ?*c.SDL_Window = c.SDL_CreateWindow(config.app_name, config.w_width, config.w_height, c.SDL_WINDOW_VULKAN);
     var required_extensions = try get_required_extensions();
 
-    var vk_context = try vk_context_mod.VkContext.init(&required_extensions);
+    const vk_context_incomplete: VkContextIncompleteInit = try VkContext.init_incomplete(&required_extensions);
 
     var vk_surface: c.VkSurfaceKHR = undefined;
-    _ = c.SDL_Vulkan_CreateSurface(window, vk_context.vk_instance, null, &vk_surface);
-    vk_context.init_surface(vk_surface);
+    _ = c.SDL_Vulkan_CreateSurface(window, vk_context_incomplete.vk_instance, null, &vk_surface);
+
+    var vk_context = try vk_context_incomplete.init_complete(vk_surface);
 
     vk_context.deinit();
     c.SDL_Quit();

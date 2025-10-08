@@ -16,6 +16,30 @@ const QueueFamilyIndices = common.QueueFamilyIndices;
 
 const allocator = std.heap.page_allocator;
 
+pub const VkContextIncompleteInit = struct {
+    vk_instance: c.VkInstance,
+    debug_messenger: c.VkDebugUtilsMessengerEXT,
+
+    pub fn init_complete(self: @This(), vk_surface: c.VkSurfaceKHR) !VkContext {
+        const physical_device_result = try VkContext.get_physical_device_and_queue_indices(self.vk_instance, vk_surface);
+        const physical_device = physical_device_result.physical_device;
+        const queue_indices = physical_device_result.indices;
+
+        const device = try VkContext.create_device(physical_device, queue_indices);
+        const graphics_queue = VkContext.get_graphics_queue(device, queue_indices.graphics_family);
+
+        return VkContext{
+            .vk_instance = self.vk_instance,
+            .debug_messenger = self.debug_messenger,
+
+            .device = device,
+            .graphics_queue = graphics_queue,
+
+            .vk_surface = vk_surface,
+        };
+    }
+};
+
 pub const VkContext = struct {
     vk_instance: c.VkInstance,
     debug_messenger: c.VkDebugUtilsMessengerEXT,
@@ -24,7 +48,7 @@ pub const VkContext = struct {
 
     vk_surface: c.VkSurfaceKHR,
 
-    pub fn init(required_extensions: *ArrayList([*c]const u8)) !VkContext {
+    pub fn init_incomplete(required_extensions: *ArrayList([*c]const u8)) !VkContextIncompleteInit {
         if (config.enable_validation_layers)
             try required_extensions.append(allocator, c.VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 
@@ -32,20 +56,11 @@ pub const VkContext = struct {
 
         const debug_messenger = if (config.enable_validation_layers) try v_layers.create_debug_messenger(vk_instance) else null;
 
-        const physical_device_result = try VkContext.get_physical_device_and_queue_indices(vk_instance);
-        const physical_device = physical_device_result.physical_device;
-        const queue_indices = physical_device_result.indices;
-
-        const device = try VkContext.create_device(physical_device, queue_indices);
-        const graphics_queue = VkContext.get_graphics_queue(device, queue_indices.graphics_family);
+        logger.log(.Debug, "VkContextIncompleteInit created successfully", .{});
 
         return .{
             .vk_instance = vk_instance,
             .debug_messenger = debug_messenger,
-            .device = device,
-            .graphics_queue = graphics_queue,
-
-            .vk_surface = null,
         };
     }
 
@@ -60,20 +75,18 @@ pub const VkContext = struct {
         c.vkDestroyInstance(self.vk_instance, null);
     }
 
-    pub fn init_surface(self: *@This(), surface: c.VkSurfaceKHR) void {
-        if (self.vk_surface == null) {
-            logger.log(.Debug, "initialized surface: 0x{x}", .{@intFromPtr(surface)});
-            self.vk_surface = surface;
-        } else {
-            logger.log(.Warn, "attempted to initialize surface after it has been already initialized, ignoring.", .{});
-        }
-    }
-
     fn get_graphics_queue(device: c.VkDevice, graphics_family_index: u32) c.VkQueue {
         var graphics_queue: c.VkQueue = undefined;
         c.vkGetDeviceQueue(device, graphics_family_index, 0, &graphics_queue);
         logger.log(.Debug, "graphics queue: 0x{x}", .{@intFromPtr(graphics_queue)});
         return graphics_queue;
+    }
+
+    fn get_present_queue(device: c.VkDevice, present_family_index: u32) c.VkQueue {
+        var present_queue: c.VkQueue = undefined;
+        c.vkGetDeviceQueue(device, present_family_index, 0, &present_queue);
+        logger.log(.Debug, "present queue: 0x{x}", .{@intFromPtr(present_queue)});
+        return present_queue;
     }
 
     fn create_device(
@@ -85,10 +98,13 @@ pub const VkContext = struct {
         return device;
     }
 
-    fn get_physical_device_and_queue_indices(instance: c.VkInstance) !p_device_mod.PDeviceResult {
-        const physical_devices = try p_device_mod.find_physical_devices(allocator, instance);
+    fn get_physical_device_and_queue_indices(
+        vk_instance: c.VkInstance,
+        vk_surface: c.VkSurfaceKHR,
+    ) !p_device_mod.PDeviceResult {
+        const physical_devices = try p_device_mod.find_physical_devices(allocator, vk_instance);
         defer allocator.free(physical_devices);
-        return try p_device_mod.select_suitable_physical_device(physical_devices);
+        return try p_device_mod.select_suitable_physical_device(physical_devices, vk_surface);
     }
 
     fn create_vk_instance(required_extensions: *std.ArrayList([*c]const u8)) !c.VkInstance {

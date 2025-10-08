@@ -44,6 +44,7 @@ pub fn find_physical_devices(
 /// return value is a struct that contains QueueFamilyIndices + the PhysicalDevice.
 pub fn select_suitable_physical_device(
     physical_devices: []c.VkPhysicalDevice,
+    vk_surface: c.VkSurfaceKHR,
 ) !PDeviceResult {
     const allocator = std.heap.page_allocator;
 
@@ -53,7 +54,11 @@ pub fn select_suitable_physical_device(
     for (physical_devices) |physical_device| {
         const queue_families = try find_queue_families(allocator, physical_device);
         defer allocator.free(queue_families);
-        const indices = select_queue_family_indices(queue_families);
+        const indices = select_queue_family_indices(
+            physical_device,
+            queue_families,
+            vk_surface,
+        );
 
         if (indices != null) {
             selected_physical_device = physical_device;
@@ -91,16 +96,27 @@ pub fn find_queue_families(
     return queue_families;
 }
 
-pub fn select_queue_family_indices(queue_families: []c.VkQueueFamilyProperties) ?QueueFamilyIndices {
-    var indices_opt: QueueFamilyIndicesOpt = undefined;
+pub fn select_queue_family_indices(
+    physical_device: c.VkPhysicalDevice,
+    queue_families: []c.VkQueueFamilyProperties,
+    vk_surface: c.VkSurfaceKHR,
+) ?QueueFamilyIndices {
+    var indices_opt: QueueFamilyIndicesOpt = .{ .graphics_family = null, .present_family = null };
 
     for (queue_families, 0..) |queue_family, i| {
-        if (queue_family.queueFlags & c.VK_QUEUE_GRAPHICS_BIT != 0) {
-            // sanity check, no device will ever have this many queue families.
-            // if it does, something really weird occured.
-            std.debug.assert(i < 4294967296);
+        // sanity check, no device will ever have this many queue families.
+        // if it does, something really weird occured.
+        std.debug.assert(i < 4294967296);
 
+        var present_support: c.VkBool32 = undefined;
+        _ = c.vkGetPhysicalDeviceSurfaceSupportKHR(physical_device, @intCast(i), vk_surface, &present_support);
+
+        if (queue_family.queueFlags & c.VK_QUEUE_GRAPHICS_BIT != 0) {
             indices_opt.graphics_family = @intCast(i);
+        }
+
+        if (present_support == c.VK_SUCCESS) {
+            indices_opt.present_family = @intCast(i);
         }
 
         if (indices_opt.is_complete()) {
