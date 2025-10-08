@@ -30,13 +30,25 @@ pub const VkContextIncompleteInit = struct {
     ) !VkContext {
         std.debug.assert(vk_surface != null);
 
-        const physical_device_result = try get_physical_device_and_queue_indices(self.vk_instance, vk_surface);
+        var physical_device_result: PhysicalDeviceResult = undefined;
+        {
+            const physical_devices = try device_mod.find_physical_devices(allocator, self.vk_instance);
+            defer allocator.free(physical_devices);
+            physical_device_result = try device_mod.select_suitable_physical_device(physical_devices, vk_surface);
+        }
+
         const physical_device = physical_device_result.physical_device;
         const queue_family_indices = physical_device_result.indices;
 
-        const device = try create_device(physical_device, queue_family_indices);
-        const graphics_queue = get_graphics_queue(device, queue_family_indices.graphics_family);
-        const present_queue = get_present_queue(device, queue_family_indices.present_family);
+        const device = try device_mod.create_device(physical_device, queue_family_indices);
+        logger.log(.Debug, "logical device created successfully: 0x{x}", .{@intFromPtr(device)});
+
+        var graphics_queue: c.VkQueue = undefined;
+        var present_queue: c.VkQueue = undefined;
+        c.vkGetDeviceQueue(device, queue_family_indices.graphics_family, 0, &graphics_queue);
+        c.vkGetDeviceQueue(device, queue_family_indices.present_family, 0, &present_queue);
+        logger.log(.Debug, "graphics queue: 0x{x}", .{@intFromPtr(graphics_queue)});
+        logger.log(.Debug, "present queue: 0x{x}", .{@intFromPtr(present_queue)});
 
         const swap_chain_support_details = try device_mod.query_swapchain_support_details(
             allocator,
@@ -103,7 +115,16 @@ pub const VkContext = struct {
         if (config.enable_validation_layers)
             try required_extensions.append(allocator, c.VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 
-        const vk_instance = try create_vk_instance(required_extensions);
+        var vk_instance: c.VkInstance = undefined;
+        {
+            vk_instance = try instance_mod.create_instance(required_extensions.items);
+            defer required_extensions.deinit(allocator);
+
+            logger.log(.Debug, "required extensions: {any}", .{required_extensions});
+            logger.log(.Debug, "Instance created successfully: 0x{x}", .{@intFromPtr(vk_instance)});
+            if (config.enable_validation_layers)
+                logger.log(.Debug, "enabled validation layers: {any}", .{config.validation_layers});
+        }
 
         const maybe_debug_messenger = if (config.enable_validation_layers) try v_layers.create_debug_messenger(vk_instance) else null;
 
@@ -132,49 +153,3 @@ pub const VkContext = struct {
         logger.log(.Debug, "finished unloading VkContext", .{});
     }
 };
-
-fn get_graphics_queue(device: c.VkDevice, graphics_family_index: u32) c.VkQueue {
-    var graphics_queue: c.VkQueue = undefined;
-    c.vkGetDeviceQueue(device, graphics_family_index, 0, &graphics_queue);
-    logger.log(.Debug, "graphics queue: 0x{x}", .{@intFromPtr(graphics_queue)});
-    return graphics_queue;
-}
-
-fn get_present_queue(device: c.VkDevice, present_family_index: u32) c.VkQueue {
-    var present_queue: c.VkQueue = undefined;
-    c.vkGetDeviceQueue(device, present_family_index, 0, &present_queue);
-    logger.log(.Debug, "present queue: 0x{x}", .{@intFromPtr(present_queue)});
-    return present_queue;
-}
-
-fn create_device(
-    physical_device: c.VkPhysicalDevice,
-    queue_indices: QueueFamilyIndices,
-) !c.VkDevice {
-    const device = try device_mod.create_device(physical_device, queue_indices);
-    logger.log(.Debug, "logical device created successfully: 0x{x}", .{@intFromPtr(device)});
-    return device;
-}
-
-fn get_physical_device_and_queue_indices(
-    vk_instance: c.VkInstance,
-    vk_surface: c.VkSurfaceKHR,
-) !PhysicalDeviceResult {
-    const physical_devices = try device_mod.find_physical_devices(allocator, vk_instance);
-    defer allocator.free(physical_devices);
-    return try device_mod.select_suitable_physical_device(physical_devices, vk_surface);
-}
-
-fn create_vk_instance(required_extensions: *std.ArrayList([*c]const u8)) !c.VkInstance {
-    const required_extensions_slice = try required_extensions.toOwnedSlice(allocator);
-    logger.log(.Debug, "required extensions: {any}", .{required_extensions_slice});
-
-    const instance = try instance_mod.create_instance(required_extensions_slice);
-    defer allocator.free(required_extensions_slice);
-
-    logger.log(.Debug, "Instance created successfully: 0x{x}", .{@intFromPtr(instance)});
-    if (config.enable_validation_layers)
-        logger.log(.Debug, "enabled validation layers: {any}", .{config.validation_layers});
-
-    return instance;
-}
