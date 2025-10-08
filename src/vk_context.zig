@@ -18,7 +18,7 @@ const allocator = std.heap.page_allocator;
 
 pub const VkContextIncompleteInit = struct {
     vk_instance: c.VkInstance,
-    debug_messenger: c.VkDebugUtilsMessengerEXT,
+    maybe_debug_messenger: c.VkDebugUtilsMessengerEXT,
 
     pub fn init_complete(self: @This(), vk_surface: c.VkSurfaceKHR) !VkContext {
         const physical_device_result = try get_physical_device_and_queue_indices(self.vk_instance, vk_surface);
@@ -32,7 +32,7 @@ pub const VkContextIncompleteInit = struct {
 
         return VkContext{
             .vk_instance = self.vk_instance,
-            .debug_messenger = self.debug_messenger,
+            .maybe_debug_messenger = self.maybe_debug_messenger,
 
             .device = device,
             .graphics_queue = graphics_queue,
@@ -44,7 +44,7 @@ pub const VkContextIncompleteInit = struct {
 
 pub const VkContext = struct {
     vk_instance: c.VkInstance,
-    debug_messenger: c.VkDebugUtilsMessengerEXT,
+    maybe_debug_messenger: c.VkDebugUtilsMessengerEXT,
     device: c.VkDevice,
     graphics_queue: c.VkQueue,
 
@@ -56,13 +56,13 @@ pub const VkContext = struct {
 
         const vk_instance = try create_vk_instance(required_extensions);
 
-        const debug_messenger = if (config.enable_validation_layers) try v_layers.create_debug_messenger(vk_instance) else null;
+        const maybe_debug_messenger = if (config.enable_validation_layers) try v_layers.create_debug_messenger(vk_instance) else null;
 
         logger.log(.Debug, "VkContextIncompleteInit created successfully", .{});
 
         return .{
             .vk_instance = vk_instance,
-            .debug_messenger = debug_messenger,
+            .maybe_debug_messenger = maybe_debug_messenger,
         };
     }
 
@@ -73,8 +73,8 @@ pub const VkContext = struct {
             c.vkDestroySurfaceKHR(self.vk_instance, self.vk_surface, null);
         }
         c.vkDestroyDevice(self.device, null);
-        if (self.debug_messenger != null) {
-            v_layers.destroy_debug_utils_messenger_ext(self.vk_instance, self.debug_messenger, null);
+        if (self.maybe_debug_messenger != null) {
+            v_layers.destroy_debug_utils_messenger_ext(self.vk_instance, self.maybe_debug_messenger, null);
         }
         c.vkDestroyInstance(self.vk_instance, null);
 
