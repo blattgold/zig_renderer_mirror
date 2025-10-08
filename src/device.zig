@@ -168,7 +168,7 @@ pub fn select_queue_family_indices(
     for (queue_families, 0..) |queue_family, i| {
         // sanity check, no device will ever have this many queue families.
         // if it does, something really weird occured.
-        std.debug.assert(i < 4294967296);
+        std.debug.assert(i < std.math.maxInt(u32));
 
         var present_support: c.VkBool32 = undefined;
         _ = c.vkGetPhysicalDeviceSurfaceSupportKHR(physical_device, @intCast(i), vk_surface, &present_support);
