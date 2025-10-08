@@ -21,12 +21,12 @@ pub const VkContextIncompleteInit = struct {
     debug_messenger: c.VkDebugUtilsMessengerEXT,
 
     pub fn init_complete(self: @This(), vk_surface: c.VkSurfaceKHR) !VkContext {
-        const physical_device_result = try VkContext.get_physical_device_and_queue_indices(self.vk_instance, vk_surface);
+        const physical_device_result = try get_physical_device_and_queue_indices(self.vk_instance, vk_surface);
         const physical_device = physical_device_result.physical_device;
         const queue_indices = physical_device_result.indices;
 
-        const device = try VkContext.create_device(physical_device, queue_indices);
-        const graphics_queue = VkContext.get_graphics_queue(device, queue_indices.graphics_family);
+        const device = try create_device(physical_device, queue_indices);
+        const graphics_queue = get_graphics_queue(device, queue_indices.graphics_family);
 
         logger.log(.Debug, "VkContext created successfully", .{});
 
@@ -54,7 +54,7 @@ pub const VkContext = struct {
         if (config.enable_validation_layers)
             try required_extensions.append(allocator, c.VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 
-        const vk_instance = try VkContext.create_vk_instance(required_extensions);
+        const vk_instance = try create_vk_instance(required_extensions);
 
         const debug_messenger = if (config.enable_validation_layers) try v_layers.create_debug_messenger(vk_instance) else null;
 
@@ -67,6 +67,8 @@ pub const VkContext = struct {
     }
 
     pub fn deinit(self: @This()) void {
+        logger.log(.Debug, "unloading VkContext...", .{});
+
         if (self.vk_surface != null) {
             c.vkDestroySurfaceKHR(self.vk_instance, self.vk_surface, null);
         }
@@ -75,51 +77,53 @@ pub const VkContext = struct {
             v_layers.destroy_debug_utils_messenger_ext(self.vk_instance, self.debug_messenger, null);
         }
         c.vkDestroyInstance(self.vk_instance, null);
-    }
 
-    fn get_graphics_queue(device: c.VkDevice, graphics_family_index: u32) c.VkQueue {
-        var graphics_queue: c.VkQueue = undefined;
-        c.vkGetDeviceQueue(device, graphics_family_index, 0, &graphics_queue);
-        logger.log(.Debug, "graphics queue: 0x{x}", .{@intFromPtr(graphics_queue)});
-        return graphics_queue;
-    }
-
-    fn get_present_queue(device: c.VkDevice, present_family_index: u32) c.VkQueue {
-        var present_queue: c.VkQueue = undefined;
-        c.vkGetDeviceQueue(device, present_family_index, 0, &present_queue);
-        logger.log(.Debug, "present queue: 0x{x}", .{@intFromPtr(present_queue)});
-        return present_queue;
-    }
-
-    fn create_device(
-        physical_device: c.VkPhysicalDevice,
-        queue_indices: QueueFamilyIndices,
-    ) !c.VkDevice {
-        const device = try device_mod.create_logical_device(physical_device, queue_indices);
-        logger.log(.Debug, "logical device created successfully: 0x{x}", .{@intFromPtr(device)});
-        return device;
-    }
-
-    fn get_physical_device_and_queue_indices(
-        vk_instance: c.VkInstance,
-        vk_surface: c.VkSurfaceKHR,
-    ) !p_device_mod.PDeviceResult {
-        const physical_devices = try p_device_mod.find_physical_devices(allocator, vk_instance);
-        defer allocator.free(physical_devices);
-        return try p_device_mod.select_suitable_physical_device(physical_devices, vk_surface);
-    }
-
-    fn create_vk_instance(required_extensions: *std.ArrayList([*c]const u8)) !c.VkInstance {
-        const required_extensions_slice = try required_extensions.toOwnedSlice(allocator);
-        logger.log(.Debug, "required extensions: {any}", .{required_extensions_slice});
-
-        const instance = try instance_mod.create_instance(required_extensions_slice);
-        defer allocator.free(required_extensions_slice);
-
-        logger.log(.Debug, "Instance created successfully: 0x{x}", .{@intFromPtr(instance)});
-        if (config.enable_validation_layers)
-            logger.log(.Debug, "enabled validation layers: {any}", .{config.validation_layers});
-
-        return instance;
+        logger.log(.Debug, "finished unloading VkContext", .{});
     }
 };
+
+fn get_graphics_queue(device: c.VkDevice, graphics_family_index: u32) c.VkQueue {
+    var graphics_queue: c.VkQueue = undefined;
+    c.vkGetDeviceQueue(device, graphics_family_index, 0, &graphics_queue);
+    logger.log(.Debug, "graphics queue: 0x{x}", .{@intFromPtr(graphics_queue)});
+    return graphics_queue;
+}
+
+fn get_present_queue(device: c.VkDevice, present_family_index: u32) c.VkQueue {
+    var present_queue: c.VkQueue = undefined;
+    c.vkGetDeviceQueue(device, present_family_index, 0, &present_queue);
+    logger.log(.Debug, "present queue: 0x{x}", .{@intFromPtr(present_queue)});
+    return present_queue;
+}
+
+fn create_device(
+    physical_device: c.VkPhysicalDevice,
+    queue_indices: QueueFamilyIndices,
+) !c.VkDevice {
+    const device = try device_mod.create_logical_device(physical_device, queue_indices);
+    logger.log(.Debug, "logical device created successfully: 0x{x}", .{@intFromPtr(device)});
+    return device;
+}
+
+fn get_physical_device_and_queue_indices(
+    vk_instance: c.VkInstance,
+    vk_surface: c.VkSurfaceKHR,
+) !p_device_mod.PDeviceResult {
+    const physical_devices = try p_device_mod.find_physical_devices(allocator, vk_instance);
+    defer allocator.free(physical_devices);
+    return try p_device_mod.select_suitable_physical_device(physical_devices, vk_surface);
+}
+
+fn create_vk_instance(required_extensions: *std.ArrayList([*c]const u8)) !c.VkInstance {
+    const required_extensions_slice = try required_extensions.toOwnedSlice(allocator);
+    logger.log(.Debug, "required extensions: {any}", .{required_extensions_slice});
+
+    const instance = try instance_mod.create_instance(required_extensions_slice);
+    defer allocator.free(required_extensions_slice);
+
+    logger.log(.Debug, "Instance created successfully: 0x{x}", .{@intFromPtr(instance)});
+    if (config.enable_validation_layers)
+        logger.log(.Debug, "enabled validation layers: {any}", .{config.validation_layers});
+
+    return instance;
+}
