@@ -96,6 +96,8 @@ pub fn select_queue_family_indices(queue_families: []c.VkQueueFamilyProperties) 
 
     for (queue_families, 0..) |queue_family, i| {
         if (queue_family.queueFlags & c.VK_QUEUE_GRAPHICS_BIT != 0) {
+            // sanity check, no device will ever have this many queue families.
+            // if it does, something really weird occured.
             std.debug.assert(i < 4294967296);
 
             indices_opt.graphics_family = @intCast(i);
