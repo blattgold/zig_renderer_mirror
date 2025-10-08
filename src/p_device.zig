@@ -1,9 +1,11 @@
 const std = @import("std");
 const common = @import("common.zig");
 const logger = @import("logger.zig");
+const config = @import("config.zig");
 
 const c = common.c;
 
+const ArrayList = std.ArrayList;
 const VulkanError = common.VulkanError;
 const QueueFamilyIndices = common.QueueFamilyIndices;
 const QueueFamilyIndicesOpt = common.QueueFamilyIndicesOpt;
@@ -40,7 +42,10 @@ pub fn find_physical_devices(
     return physical_devices;
 }
 
-/// a device is suitable if at least one queue_family exists that has all the necessary capabilites.
+/// a device is suitable if:
+/// - at least one queue_family exists that has all the necessary capabilites.
+/// - it supports all the required device extensions defined in config.device_extensions
+///
 /// return value is a struct that contains QueueFamilyIndices + the PhysicalDevice.
 pub fn select_suitable_physical_device(
     physical_devices: []c.VkPhysicalDevice,
@@ -60,7 +65,7 @@ pub fn select_suitable_physical_device(
             vk_surface,
         );
 
-        const is_suitable = indices != null and supports_required_device_extensions(physical_device);
+        const is_suitable = indices != null and try supports_required_device_extensions(physical_device);
         if (is_suitable) {
             selected_physical_device = physical_device;
             selected_indices = indices;
@@ -77,9 +82,41 @@ pub fn select_suitable_physical_device(
     };
 }
 
-// helper for select_suitable_physical_device
-// returns true if all the required extensions are supported
-fn supports_required_device_extensions(_: c.VkPhysicalDevice) bool {
+/// helper for select_suitable_physical_device
+/// returns true if all the required extensions are supported
+fn supports_required_device_extensions(physical_device: c.VkPhysicalDevice) !bool {
+    const allocator = std.heap.page_allocator;
+
+    var extension_count: u32 = undefined;
+    if (c.vkEnumerateDeviceExtensionProperties(physical_device, null, &extension_count, null) != c.VK_SUCCESS)
+        return false;
+
+    const available_extensions = try allocator.alloc(c.VkExtensionProperties, extension_count);
+    defer allocator.free(available_extensions);
+    if (c.vkEnumerateDeviceExtensionProperties(physical_device, null, &extension_count, available_extensions.ptr) != c.VK_SUCCESS)
+        return false;
+
+    for (config.device_extensions) |required_device_extension_name| {
+        var found_required_device_extension = false;
+
+        for (available_extensions) |available_extension| {
+            if (std.mem.eql(
+                u8,
+                required_device_extension_name,
+                std.mem.sliceTo(available_extension.extensionName[0..], 0),
+            )) {
+                found_required_device_extension = true;
+                break;
+            }
+        }
+
+        if (!found_required_device_extension) {
+            logger.log(.Error, "couldn't find required device extension: {s}", .{required_device_extension_name});
+            return false;
+        }
+        logger.log(.Debug, "found required device extension: {s}", .{required_device_extension_name});
+    }
+
     return true;
 }
 
