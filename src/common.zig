@@ -21,6 +21,7 @@ pub const VulkanError = error{
 
     SwapChainSupportDetailsQueryFailure,
     SwapChainCreateFailure,
+    SwapChainGetImagesFailure,
 };
 
 pub const QueueFamilyIndices = struct {

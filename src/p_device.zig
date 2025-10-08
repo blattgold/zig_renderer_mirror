@@ -296,17 +296,12 @@ pub fn choose_swap_extent(
 }
 
 pub fn create_swap_chain(
-    physical_device: c.VkPhysicalDevice,
     device: c.VkDevice,
     vk_surface: c.VkSurfaceKHR,
+    swap_chain_support_details: SwapChainSupportDetails,
     window_frame_buffer_size: WindowFrameBufferSize,
     queue_family_indices: QueueFamilyIndices,
 ) !c.VkSwapchainKHR {
-    const allocator = std.heap.page_allocator;
-
-    const swap_chain_support_details: SwapChainSupportDetails = try query_swapchain_support_details(allocator, physical_device, vk_surface);
-    defer swap_chain_support_details.deinit(allocator);
-
     const surface_format = choose_swap_surface_format(swap_chain_support_details.formats);
     const present_mode = choose_swap_present_mode(swap_chain_support_details.present_modes);
     const extent = choose_swap_extent(

@@ -14,6 +14,7 @@ const VulkanError = common.VulkanError;
 const ArrayList = std.ArrayList;
 const QueueFamilyIndices = common.QueueFamilyIndices;
 const WindowFrameBufferSize = common.WindowFrameBufferSize;
+const SwapChainSupportDetails = common.SwapChainSupportDetails;
 
 const allocator = std.heap.page_allocator;
 
@@ -36,13 +37,33 @@ pub const VkContextIncompleteInit = struct {
         const graphics_queue = get_graphics_queue(device, queue_family_indices.graphics_family);
         const present_queue = get_present_queue(device, queue_family_indices.present_family);
 
-        const swap_chain = try p_device_mod.create_swap_chain(
+        const swap_chain_support_details = try p_device_mod.query_swapchain_support_details(
+            allocator,
             physical_device,
+            vk_surface,
+        );
+
+        const swap_chain = try p_device_mod.create_swap_chain(
             device,
             vk_surface,
+            swap_chain_support_details,
             window_frame_buffer_size,
             queue_family_indices,
         );
+
+        var swap_chain_images: ArrayList(c.VkImage) = .empty;
+        {
+            var image_count: u32 = undefined;
+            if (c.vkGetSwapchainImagesKHR(device, swap_chain, &image_count, null) != c.VK_SUCCESS)
+                return VulkanError.SwapChainGetImagesFailure;
+
+            try swap_chain_images.resize(allocator, image_count);
+            if (c.vkGetSwapchainImagesKHR(device, swap_chain, &image_count, swap_chain_images.items.ptr) != c.VK_SUCCESS) {
+                swap_chain_images.clearAndFree(allocator);
+                return VulkanError.SwapChainGetImagesFailure;
+            }
+            logger.log(.Debug, "loaded swap chain images successfully", .{});
+        }
 
         logger.log(.Debug, "VkContext created successfully", .{});
 
@@ -57,6 +78,8 @@ pub const VkContextIncompleteInit = struct {
 
             .vk_surface = vk_surface,
             .swap_chain = swap_chain,
+            .swap_chain_images = swap_chain_images,
+            .swap_chain_support_details = swap_chain_support_details,
         };
     }
 };
@@ -72,6 +95,8 @@ pub const VkContext = struct {
 
     vk_surface: c.VkSurfaceKHR,
     swap_chain: c.VkSwapchainKHR,
+    swap_chain_images: ArrayList(c.VkImage),
+    swap_chain_support_details: SwapChainSupportDetails,
 
     pub fn init_incomplete(required_extensions: *ArrayList([*c]const u8)) !VkContextIncompleteInit {
         if (config.enable_validation_layers)
@@ -89,8 +114,11 @@ pub const VkContext = struct {
         };
     }
 
-    pub fn deinit(self: @This()) void {
+    pub fn deinit(self: *@This()) void {
         logger.log(.Debug, "unloading VkContext...", .{});
+
+        self.swap_chain_images.clearAndFree(allocator);
+        self.swap_chain_support_details.deinit(allocator);
 
         c.vkDestroySwapchainKHR(self.device, self.swap_chain, null);
         c.vkDestroySurfaceKHR(self.vk_instance, self.vk_surface, null);
