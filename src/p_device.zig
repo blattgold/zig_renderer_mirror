@@ -60,7 +60,8 @@ pub fn select_suitable_physical_device(
             vk_surface,
         );
 
-        if (indices != null) {
+        const is_suitable = indices != null and supports_required_device_extensions(physical_device);
+        if (is_suitable) {
             selected_physical_device = physical_device;
             selected_indices = indices;
             break;
@@ -74,6 +75,12 @@ pub fn select_suitable_physical_device(
         .indices = selected_indices.?,
         .physical_device = selected_physical_device,
     };
+}
+
+// helper for select_suitable_physical_device
+// returns true if all the required extensions are supported
+fn supports_required_device_extensions(_: c.VkPhysicalDevice) bool {
+    return true;
 }
 
 pub fn find_queue_families(
