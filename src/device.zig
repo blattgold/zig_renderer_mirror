@@ -190,6 +190,18 @@ pub fn select_queue_family_indices(
     return indices_opt.to_queue_family_indices();
 }
 
+const QuerySwapChainError = error{
+    GetCapabilities,
+
+    GetFormatCount,
+    FormatCountZero,
+    GetFormats,
+
+    GetPresentModeCount,
+    PresentModeCountZero,
+    GetPresentModes,
+};
+
 /// alloctes memory, details has to be manually deallocated after use.
 ///
 /// returns an error if:
@@ -203,22 +215,22 @@ pub fn query_swapchain_support_details(
     // capabilities
     var surface_capabilities: c.VkSurfaceCapabilitiesKHR = undefined;
     if (c.vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical_device, vk_surface, @ptrCast(&surface_capabilities)) != c.VK_SUCCESS)
-        return VulkanError.SwapChainSupportDetailsQueryFailure;
+        return QuerySwapChainError.GetCapabilities;
 
     // formats
     var surface_formats: []c.VkSurfaceFormatKHR = undefined;
     {
         var format_count: u32 = undefined;
         if (c.vkGetPhysicalDeviceSurfaceFormatsKHR(physical_device, vk_surface, &format_count, null) != c.VK_SUCCESS)
-            return VulkanError.SwapChainSupportDetailsQueryFailure;
+            return QuerySwapChainError.GetFormatCount;
 
-        if (format_count < 1)
-            return VulkanError.SwapChainSupportDetailsQueryFailure;
+        if (format_count == 0)
+            return QuerySwapChainError.FormatCountZero;
 
         surface_formats = try allocator.alloc(c.VkSurfaceFormatKHR, format_count);
         errdefer allocator.free(surface_formats);
         if (c.vkGetPhysicalDeviceSurfaceFormatsKHR(physical_device, vk_surface, &format_count, surface_formats.ptr) != c.VK_SUCCESS)
-            return VulkanError.SwapChainSupportDetailsQueryFailure;
+            return QuerySwapChainError.GetFormats;
     }
     errdefer allocator.free(surface_formats);
 
@@ -227,15 +239,15 @@ pub fn query_swapchain_support_details(
     {
         var present_mode_count: u32 = undefined;
         if (c.vkGetPhysicalDeviceSurfacePresentModesKHR(physical_device, vk_surface, &present_mode_count, null) != c.VK_SUCCESS)
-            return VulkanError.SwapChainSupportDetailsQueryFailure;
+            return QuerySwapChainError.GetPresentModeCount;
 
         if (present_mode_count < 1)
-            return VulkanError.SwapChainSupportDetailsQueryFailure;
+            return QuerySwapChainError.PresentModeCountZero;
 
         present_modes = try allocator.alloc(c.VkPresentModeKHR, present_mode_count);
         errdefer allocator.free(present_modes);
         if (c.vkGetPhysicalDeviceSurfacePresentModesKHR(physical_device, vk_surface, &present_mode_count, present_modes.ptr) != c.VK_SUCCESS)
-            return VulkanError.SwapChainSupportDetailsQueryFailure;
+            return QuerySwapChainError.GetPresentModes;
     }
 
     return .{
