@@ -390,8 +390,8 @@ pub fn create_device(physical_device: c.VkPhysicalDevice, indices: QueueFamilyIn
         try queue_create_infos.append(allocator, queue_create_info);
     }
 
-    // present family
-    {
+    // only add present queue if indices differ
+    if (indices.graphics_family != indices.present_family) {
         const queue_create_info: c.VkDeviceQueueCreateInfo = .{
             .sType = c.VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
             .queueFamilyIndex = indices.present_family,
