@@ -241,7 +241,7 @@ pub fn query_swapchain_support_details(
         if (c.vkGetPhysicalDeviceSurfacePresentModesKHR(physical_device, vk_surface, &present_mode_count, null) != c.VK_SUCCESS)
             return QuerySwapChainError.GetPresentModeCount;
 
-        if (present_mode_count < 1)
+        if (present_mode_count == 0)
             return QuerySwapChainError.PresentModeCountZero;
 
         present_modes = try allocator.alloc(c.VkPresentModeKHR, present_mode_count);
