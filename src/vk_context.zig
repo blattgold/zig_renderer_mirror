@@ -50,26 +50,33 @@ pub const VkContextIncompleteInit = struct {
         logger.log(.Debug, "graphics queue: 0x{x}", .{@intFromPtr(graphics_queue)});
         logger.log(.Debug, "present queue: 0x{x}", .{@intFromPtr(present_queue)});
 
-        const swap_chain_support_details = try device_mod.query_swapchain_support_details(
-            allocator,
-            physical_device,
-            vk_surface,
-        );
-
-        const format = device_mod.select_swap_surface_format(swap_chain_support_details.formats);
-        const present_mode = device_mod.select_swap_present_mode(swap_chain_support_details.present_modes);
-        const extent = device_mod.select_swap_extent(
-            swap_chain_support_details.capabilities,
-            window_frame_buffer_size,
-        );
+        var swap_chain_surface_capabilities: c.VkSurfaceCapabilitiesKHR = undefined;
+        var swap_chain_surface_format: c.VkSurfaceFormatKHR = undefined;
+        var swap_chain_present_mode: c.VkPresentModeKHR = undefined;
+        var swap_chain_extent: c.VkExtent2D = undefined;
+        {
+            const swap_chain_support_details = try device_mod.query_swapchain_support_details(
+                allocator,
+                physical_device,
+                vk_surface,
+            );
+            defer swap_chain_support_details.deinit(allocator);
+            swap_chain_surface_capabilities = swap_chain_support_details.capabilities;
+            swap_chain_surface_format = device_mod.select_swap_surface_format(swap_chain_support_details.formats);
+            swap_chain_present_mode = device_mod.select_swap_present_mode(swap_chain_support_details.present_modes);
+            swap_chain_extent = device_mod.select_swap_extent(
+                swap_chain_support_details.capabilities,
+                window_frame_buffer_size,
+            );
+        }
 
         const swap_chain = try device_mod.create_swap_chain(
             device,
             vk_surface,
-            swap_chain_support_details.capabilities,
-            format,
-            present_mode,
-            extent,
+            swap_chain_surface_capabilities,
+            swap_chain_surface_format,
+            swap_chain_present_mode,
+            swap_chain_extent,
             queue_family_indices,
         );
 
@@ -87,6 +94,15 @@ pub const VkContextIncompleteInit = struct {
             logger.log(.Debug, "loaded swap chain images successfully", .{});
         }
 
+        const swap_chain_image_format = swap_chain_surface_format.format;
+
+        const swap_chain_image_views = try device_mod.create_image_views(
+            allocator,
+            device,
+            swap_chain_images,
+            swap_chain_image_format,
+        );
+
         logger.log(.Debug, "VkContext created successfully", .{});
 
         return VkContext{
@@ -99,9 +115,12 @@ pub const VkContextIncompleteInit = struct {
             .device = device,
 
             .vk_surface = vk_surface,
+
             .swap_chain = swap_chain,
-            .swap_chain_images = swap_chain_images,
-            .swap_chain_support_details = swap_chain_support_details,
+            .swap_chain_extent = swap_chain_extent,
+            .swap_chain_image_format = swap_chain_image_format,
+            .swap_chain_images = swap_chain_images, // needs to be freed
+            .swap_chain_image_views = swap_chain_image_views, // needs to be freed
         };
     }
 };
@@ -116,9 +135,12 @@ pub const VkContext = struct {
     device: c.VkDevice,
 
     vk_surface: c.VkSurfaceKHR,
+
     swap_chain: c.VkSwapchainKHR,
+    swap_chain_extent: c.VkExtent2D,
     swap_chain_images: ArrayList(c.VkImage),
-    swap_chain_support_details: SwapChainSupportDetails,
+    swap_chain_image_format: c.VkFormat,
+    swap_chain_image_views: []c.VkImageView,
 
     pub fn init_incomplete(required_extensions: *ArrayList([*c]const u8)) !VkContextIncompleteInit {
         if (config.enable_validation_layers)
@@ -148,8 +170,11 @@ pub const VkContext = struct {
     pub fn deinit(self: *@This()) void {
         logger.log(.Debug, "unloading VkContext...", .{});
 
+        for (self.swap_chain_image_views) |swap_chain_image_view|
+            c.vkDestroyImageView(self.device, swap_chain_image_view, null);
+
+        allocator.free(self.swap_chain_image_views);
         self.swap_chain_images.clearAndFree(allocator);
-        self.swap_chain_support_details.deinit(allocator);
 
         c.vkDestroySwapchainKHR(self.device, self.swap_chain, null);
         c.vkDestroySurfaceKHR(self.vk_instance, self.vk_surface, null);

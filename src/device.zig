@@ -414,3 +414,45 @@ pub fn create_device(physical_device: c.VkPhysicalDevice, indices: QueueFamilyIn
 
     return device;
 }
+
+pub fn create_image_views(
+    allocator: std.mem.Allocator,
+    device: c.VkDevice,
+    swap_chain_images: ArrayList(c.VkImage),
+    swap_chain_image_format: c.VkFormat,
+) ![]c.VkImageView {
+    var swap_chain_image_views: []c.VkImageView = try allocator.alloc(c.VkImageView, swap_chain_images.items.len);
+    // create info for each image
+    for (swap_chain_images.items, 0..) |swap_chain_image, i| {
+        var image_view_create_info: c.VkImageViewCreateInfo = .{
+            .sType = c.VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+            .image = swap_chain_image,
+            .viewType = c.VK_IMAGE_VIEW_TYPE_2D,
+            .format = swap_chain_image_format,
+
+            // Swizzling allows you to map a color channel to a different one, or setting it to a constant value.
+            .components = .{
+                .r = c.VK_COMPONENT_SWIZZLE_IDENTITY,
+                .g = c.VK_COMPONENT_SWIZZLE_IDENTITY,
+                .b = c.VK_COMPONENT_SWIZZLE_IDENTITY,
+                .a = c.VK_COMPONENT_SWIZZLE_IDENTITY,
+            },
+
+            // describes image's purpose
+            .subresourceRange = .{
+                .aspectMask = c.VK_IMAGE_ASPECT_COLOR_BIT,
+                .baseMipLevel = 0,
+                .levelCount = 1,
+                .baseArrayLayer = 0,
+                .layerCount = 1,
+            },
+        };
+
+        if (c.vkCreateImageView(device, &image_view_create_info, null, &swap_chain_image_views[i]) != c.VK_SUCCESS) {
+            allocator.free(swap_chain_image_views);
+            return VulkanError.ImageViewCreateError;
+        }
+    }
+
+    return swap_chain_image_views;
+}
