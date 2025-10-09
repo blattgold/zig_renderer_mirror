@@ -243,7 +243,7 @@ pub fn query_swapchain_support_details(
 /// choose preferred format.
 ///
 /// if preferred format is unavailable, picks the first one.
-pub fn choose_swap_surface_format(available_formats: []c.VkSurfaceFormatKHR) c.VkSurfaceFormatKHR {
+pub fn select_swap_surface_format(available_formats: []c.VkSurfaceFormatKHR) c.VkSurfaceFormatKHR {
     std.debug.assert(available_formats.len != 0);
 
     for (available_formats) |available_format| {
@@ -257,7 +257,7 @@ pub fn choose_swap_surface_format(available_formats: []c.VkSurfaceFormatKHR) c.V
 /// choose preferred present mode.
 ///
 /// if preferred present mode is unavailable, picks c.VK_PRESENT_MODE_FIFO_KHR.
-pub fn choose_swap_present_mode(available_present_modes: []c.VkPresentModeKHR) c.VkPresentModeKHR {
+pub fn select_swap_present_mode(available_present_modes: []c.VkPresentModeKHR) c.VkPresentModeKHR {
     for (available_present_modes) |available_present_mode| {
         if (available_present_mode == c.VK_PRESENT_MODE_MAILBOX_KHR) {
             return available_present_mode;
@@ -268,7 +268,7 @@ pub fn choose_swap_present_mode(available_present_modes: []c.VkPresentModeKHR) c
     return c.VK_PRESENT_MODE_FIFO_KHR;
 }
 
-pub fn choose_swap_extent(
+pub fn select_swap_extent(
     capabilites: c.VkSurfaceCapabilitiesKHR,
     window_frame_buffer_size: WindowFrameBufferSize,
 ) c.VkExtent2D {
@@ -302,9 +302,9 @@ pub fn create_swap_chain(
     window_frame_buffer_size: WindowFrameBufferSize,
     queue_family_indices: QueueFamilyIndices,
 ) !c.VkSwapchainKHR {
-    const surface_format = choose_swap_surface_format(swap_chain_support_details.formats);
-    const present_mode = choose_swap_present_mode(swap_chain_support_details.present_modes);
-    const extent = choose_swap_extent(
+    const surface_format = select_swap_surface_format(swap_chain_support_details.formats);
+    const present_mode = select_swap_present_mode(swap_chain_support_details.present_modes);
+    const extent = select_swap_extent(
         swap_chain_support_details.capabilities,
         window_frame_buffer_size,
     );
