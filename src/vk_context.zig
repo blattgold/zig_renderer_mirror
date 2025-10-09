@@ -29,6 +29,8 @@ pub const VkContextIncompleteInit = struct {
         window_frame_buffer_size: WindowFrameBufferSize,
     ) !VkContext {
         std.debug.assert(vk_surface != null);
+        errdefer c.vkDestroyInstance(self.vk_instance, null);
+        errdefer if (config.enable_validation_layers) v_layers.destroy_debug_utils_messenger_ext(self.vk_instance, self.maybe_debug_messenger, null);
 
         var physical_device: c.VkPhysicalDevice = undefined;
         var queue_family_indices: QueueFamilyIndices = undefined;
@@ -42,6 +44,7 @@ pub const VkContextIncompleteInit = struct {
         }
 
         const device = try device_mod.create_device(physical_device, queue_family_indices);
+        errdefer c.vkDestroyDevice(device, null);
         logger.log(.Debug, "logical device created successfully: 0x{x}", .{@intFromPtr(device)});
 
         var graphics_queue: c.VkQueue = undefined;
@@ -82,6 +85,7 @@ pub const VkContextIncompleteInit = struct {
             swap_chain_extent,
             queue_family_indices,
         );
+        errdefer c.vkDestroySwapchainKHR(device, swap_chain, null);
 
         var swap_chain_images: []c.VkImage = undefined;
         {
@@ -96,6 +100,7 @@ pub const VkContextIncompleteInit = struct {
             }
             logger.log(.Debug, "loaded swap chain images successfully", .{});
         }
+        errdefer allocator.free(swap_chain_images);
 
         const swap_chain_image_format = swap_chain_surface_format.format;
         const swap_chain_image_views = try device_mod.create_image_views(
@@ -104,6 +109,8 @@ pub const VkContextIncompleteInit = struct {
             swap_chain_images,
             swap_chain_image_format,
         );
+        errdefer allocator.free(swap_chain_image_views);
+        errdefer for (swap_chain_image_views) |swap_chain_image_view| c.vkDestroyImageView(device, swap_chain_image_view, null);
         logger.log(.Debug, "VkContext created successfully", .{});
 
         return VkContext{
@@ -149,20 +156,22 @@ pub const VkContext = struct {
 
         var vk_instance: c.VkInstance = undefined;
         {
-            vk_instance = try instance_mod.create_instance(required_extensions.items);
             defer required_extensions.deinit(allocator);
+            vk_instance = try instance_mod.create_instance(required_extensions.items);
 
             logger.log(.Debug, "required extensions: {any}", .{required_extensions});
             logger.log(.Debug, "Instance created successfully: 0x{x}", .{@intFromPtr(vk_instance)});
             if (config.enable_validation_layers)
                 logger.log(.Debug, "enabled validation layers: {any}", .{config.validation_layers});
         }
+        errdefer c.vkDestroyInstance(vk_instance, null);
 
         const maybe_debug_messenger =
             if (config.enable_validation_layers)
                 try v_layers.create_debug_messenger(vk_instance)
             else
                 null;
+        errdefer if (config.enable_validation_layers) v_layers.destroy_debug_utils_messenger_ext(vk_instance, maybe_debug_messenger, null);
 
         logger.log(.Debug, "VkContextIncompleteInit created successfully", .{});
 
