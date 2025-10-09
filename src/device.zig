@@ -178,7 +178,7 @@ pub fn select_queue_family_indices(
             indices_opt.graphics_family = @intCast(i);
         }
 
-        if (present_support == c.VK_SUCCESS) {
+        if (present_support == c.VK_TRUE) {
             indices_opt.present_family = @intCast(i);
         }
 
