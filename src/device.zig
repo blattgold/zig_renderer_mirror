@@ -303,22 +303,18 @@ pub fn select_swap_extent(
 pub fn create_swap_chain(
     device: c.VkDevice,
     vk_surface: c.VkSurfaceKHR,
-    swap_chain_support_details: SwapChainSupportDetails,
-    window_frame_buffer_size: WindowFrameBufferSize,
+    surface_capabilities: c.VkSurfaceCapabilitiesKHR,
+    surface_format: c.VkSurfaceFormatKHR,
+    present_mode: c.VkPresentModeKHR,
+    extent: c.VkExtent2D,
     queue_family_indices: QueueFamilyIndices,
 ) !c.VkSwapchainKHR {
-    const surface_format = select_swap_surface_format(swap_chain_support_details.formats);
-    const present_mode = select_swap_present_mode(swap_chain_support_details.present_modes);
-    const extent = select_swap_extent(
-        swap_chain_support_details.capabilities,
-        window_frame_buffer_size,
-    );
     logger.log(.Debug, "swap chain extent: {d}x{d}", .{ extent.width, extent.height });
 
-    var image_count = swap_chain_support_details.capabilities.minImageCount + 1;
-    if (swap_chain_support_details.capabilities.maxImageCount > 0 and
-        image_count > swap_chain_support_details.capabilities.maxImageCount)
-        image_count = swap_chain_support_details.capabilities.maxImageCount;
+    var image_count = surface_capabilities.minImageCount + 1;
+    if (surface_capabilities.maxImageCount > 0 and
+        image_count > surface_capabilities.maxImageCount)
+        image_count = surface_capabilities.maxImageCount;
 
     logger.log(.Debug, "swap chain min image count: {d}", .{image_count});
 
@@ -338,7 +334,7 @@ pub fn create_swap_chain(
         .imageArrayLayers = 1,
         .imageUsage = c.VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
 
-        .preTransform = swap_chain_support_details.capabilities.currentTransform,
+        .preTransform = surface_capabilities.currentTransform,
         .compositeAlpha = c.VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
         .presentMode = present_mode,
         .clipped = c.VK_TRUE,

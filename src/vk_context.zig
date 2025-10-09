@@ -56,11 +56,20 @@ pub const VkContextIncompleteInit = struct {
             vk_surface,
         );
 
+        const format = device_mod.select_swap_surface_format(swap_chain_support_details.formats);
+        const present_mode = device_mod.select_swap_present_mode(swap_chain_support_details.present_modes);
+        const extent = device_mod.select_swap_extent(
+            swap_chain_support_details.capabilities,
+            window_frame_buffer_size,
+        );
+
         const swap_chain = try device_mod.create_swap_chain(
             device,
             vk_surface,
-            swap_chain_support_details,
-            window_frame_buffer_size,
+            swap_chain_support_details.capabilities,
+            format,
+            present_mode,
+            extent,
             queue_family_indices,
         );
 
