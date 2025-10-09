@@ -30,25 +30,28 @@ pub const VkContextIncompleteInit = struct {
     ) !VkContext {
         std.debug.assert(vk_surface != null);
 
-        var physical_device_result: PhysicalDeviceResult = undefined;
+        var physical_device: c.VkPhysicalDevice = undefined;
+        var queue_family_indices: QueueFamilyIndices = undefined;
         {
             const physical_devices = try device_mod.find_physical_devices(allocator, self.vk_instance);
             defer allocator.free(physical_devices);
-            physical_device_result = try device_mod.select_suitable_physical_device(physical_devices, vk_surface);
-        }
+            const physical_device_result = try device_mod.select_suitable_physical_device(physical_devices, vk_surface);
 
-        const physical_device = physical_device_result.physical_device;
-        const queue_family_indices = physical_device_result.indices;
+            physical_device = physical_device_result.physical_device;
+            queue_family_indices = physical_device_result.indices;
+        }
 
         const device = try device_mod.create_device(physical_device, queue_family_indices);
         logger.log(.Debug, "logical device created successfully: 0x{x}", .{@intFromPtr(device)});
 
         var graphics_queue: c.VkQueue = undefined;
         var present_queue: c.VkQueue = undefined;
-        c.vkGetDeviceQueue(device, queue_family_indices.graphics_family, 0, &graphics_queue);
-        c.vkGetDeviceQueue(device, queue_family_indices.present_family, 0, &present_queue);
-        logger.log(.Debug, "graphics queue: 0x{x}", .{@intFromPtr(graphics_queue)});
-        logger.log(.Debug, "present queue: 0x{x}", .{@intFromPtr(present_queue)});
+        {
+            c.vkGetDeviceQueue(device, queue_family_indices.graphics_family, 0, &graphics_queue);
+            c.vkGetDeviceQueue(device, queue_family_indices.present_family, 0, &present_queue);
+            logger.log(.Debug, "graphics queue: 0x{x}", .{@intFromPtr(graphics_queue)});
+            logger.log(.Debug, "present queue: 0x{x}", .{@intFromPtr(present_queue)});
+        }
 
         var swap_chain_surface_capabilities: c.VkSurfaceCapabilitiesKHR = undefined;
         var swap_chain_surface_format: c.VkSurfaceFormatKHR = undefined;
@@ -80,29 +83,27 @@ pub const VkContextIncompleteInit = struct {
             queue_family_indices,
         );
 
-        var swap_chain_images: ArrayList(c.VkImage) = .empty;
+        var swap_chain_images: []c.VkImage = undefined;
         {
             var image_count: u32 = undefined;
             if (c.vkGetSwapchainImagesKHR(device, swap_chain, &image_count, null) != c.VK_SUCCESS)
                 return VulkanError.SwapChainGetImagesFailure;
 
-            try swap_chain_images.resize(allocator, image_count);
-            if (c.vkGetSwapchainImagesKHR(device, swap_chain, &image_count, swap_chain_images.items.ptr) != c.VK_SUCCESS) {
-                swap_chain_images.clearAndFree(allocator);
+            swap_chain_images = try allocator.alloc(c.VkImage, image_count);
+            if (c.vkGetSwapchainImagesKHR(device, swap_chain, &image_count, swap_chain_images.ptr) != c.VK_SUCCESS) {
+                allocator.free(swap_chain_images);
                 return VulkanError.SwapChainGetImagesFailure;
             }
             logger.log(.Debug, "loaded swap chain images successfully", .{});
         }
 
         const swap_chain_image_format = swap_chain_surface_format.format;
-
         const swap_chain_image_views = try device_mod.create_image_views(
             allocator,
             device,
             swap_chain_images,
             swap_chain_image_format,
         );
-
         logger.log(.Debug, "VkContext created successfully", .{});
 
         return VkContext{
@@ -138,7 +139,7 @@ pub const VkContext = struct {
 
     swap_chain: c.VkSwapchainKHR,
     swap_chain_extent: c.VkExtent2D,
-    swap_chain_images: ArrayList(c.VkImage),
+    swap_chain_images: []c.VkImage,
     swap_chain_image_format: c.VkFormat,
     swap_chain_image_views: []c.VkImageView,
 
@@ -157,7 +158,11 @@ pub const VkContext = struct {
                 logger.log(.Debug, "enabled validation layers: {any}", .{config.validation_layers});
         }
 
-        const maybe_debug_messenger = if (config.enable_validation_layers) try v_layers.create_debug_messenger(vk_instance) else null;
+        const maybe_debug_messenger =
+            if (config.enable_validation_layers)
+                try v_layers.create_debug_messenger(vk_instance)
+            else
+                null;
 
         logger.log(.Debug, "VkContextIncompleteInit created successfully", .{});
 
@@ -174,14 +179,13 @@ pub const VkContext = struct {
             c.vkDestroyImageView(self.device, swap_chain_image_view, null);
 
         allocator.free(self.swap_chain_image_views);
-        self.swap_chain_images.clearAndFree(allocator);
+        allocator.free(self.swap_chain_images);
 
         c.vkDestroySwapchainKHR(self.device, self.swap_chain, null);
         c.vkDestroySurfaceKHR(self.vk_instance, self.vk_surface, null);
         c.vkDestroyDevice(self.device, null);
-        if (self.maybe_debug_messenger != null) {
+        if (self.maybe_debug_messenger != null)
             v_layers.destroy_debug_utils_messenger_ext(self.vk_instance, self.maybe_debug_messenger, null);
-        }
         c.vkDestroyInstance(self.vk_instance, null);
 
         logger.log(.Debug, "finished unloading VkContext", .{});

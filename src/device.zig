@@ -418,12 +418,12 @@ pub fn create_device(physical_device: c.VkPhysicalDevice, indices: QueueFamilyIn
 pub fn create_image_views(
     allocator: std.mem.Allocator,
     device: c.VkDevice,
-    swap_chain_images: ArrayList(c.VkImage),
+    swap_chain_images: []c.VkImage,
     swap_chain_image_format: c.VkFormat,
 ) ![]c.VkImageView {
-    var swap_chain_image_views: []c.VkImageView = try allocator.alloc(c.VkImageView, swap_chain_images.items.len);
+    var swap_chain_image_views: []c.VkImageView = try allocator.alloc(c.VkImageView, swap_chain_images.len);
     // create info for each image
-    for (swap_chain_images.items, 0..) |swap_chain_image, i| {
+    for (swap_chain_images, 0..) |swap_chain_image, i| {
         var image_view_create_info: c.VkImageViewCreateInfo = .{
             .sType = c.VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
             .image = swap_chain_image,
