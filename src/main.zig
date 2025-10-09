@@ -32,6 +32,7 @@ fn get_required_extensions() !ArrayList([*c]const u8) {
 pub fn main() !void {
     if (c.SDL_Init(c.SDL_INIT_VIDEO) == false)
         return SDLError.SDL_InitFailure;
+    defer c.SDL_Quit();
 
     if (c.SDL_Vulkan_LoadLibrary(null) == false)
         return SDLError.SDL_Vulkan_LoadLibraryFailure;
@@ -52,7 +53,5 @@ pub fn main() !void {
             .{ .h = config.w_height, .w = config.w_width },
         );
     }
-
-    vk_context.deinit();
-    c.SDL_Quit();
+    defer vk_context.deinit();
 }

@@ -34,6 +34,7 @@ pub fn find_physical_devices(
         return VulkanError.NoPhysicalDevices;
 
     var physical_devices = try allocator.alloc(c.VkPhysicalDevice, physical_device_count);
+    errdefer allocator.free(physical_devices);
     if (c.vkEnumeratePhysicalDevices(
         vk_instance,
         &physical_device_count,
@@ -199,13 +200,13 @@ pub fn query_swapchain_support_details(
     physical_device: c.VkPhysicalDevice,
     vk_surface: c.VkSurfaceKHR,
 ) !SwapChainSupportDetails {
-    var details: SwapChainSupportDetails = undefined;
-
     // capabilities
-    if (c.vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical_device, vk_surface, &details.capabilities) != c.VK_SUCCESS)
+    var surface_capabilities: c.VkSurfaceCapabilitiesKHR = undefined;
+    if (c.vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical_device, vk_surface, @ptrCast(&surface_capabilities)) != c.VK_SUCCESS)
         return VulkanError.SwapChainSupportDetailsQueryFailure;
 
     // formats
+    var surface_formats: []c.VkSurfaceFormatKHR = undefined;
     {
         var format_count: u32 = undefined;
         if (c.vkGetPhysicalDeviceSurfaceFormatsKHR(physical_device, vk_surface, &format_count, null) != c.VK_SUCCESS)
@@ -214,35 +215,34 @@ pub fn query_swapchain_support_details(
         if (format_count < 1)
             return VulkanError.SwapChainSupportDetailsQueryFailure;
 
-        details.formats = try allocator.alloc(c.VkSurfaceFormatKHR, format_count);
-        if (c.vkGetPhysicalDeviceSurfaceFormatsKHR(physical_device, vk_surface, &format_count, details.formats.ptr) != c.VK_SUCCESS) {
-            allocator.free(details.formats);
+        surface_formats = try allocator.alloc(c.VkSurfaceFormatKHR, format_count);
+        errdefer allocator.free(surface_formats);
+        if (c.vkGetPhysicalDeviceSurfaceFormatsKHR(physical_device, vk_surface, &format_count, surface_formats.ptr) != c.VK_SUCCESS)
             return VulkanError.SwapChainSupportDetailsQueryFailure;
-        }
     }
+    errdefer allocator.free(surface_formats);
 
     // present modes
+    var present_modes: []c.VkPresentModeKHR = undefined;
     {
         var present_mode_count: u32 = undefined;
-        if (c.vkGetPhysicalDeviceSurfacePresentModesKHR(physical_device, vk_surface, &present_mode_count, null) != c.VK_SUCCESS) {
-            allocator.free(details.formats);
+        if (c.vkGetPhysicalDeviceSurfacePresentModesKHR(physical_device, vk_surface, &present_mode_count, null) != c.VK_SUCCESS)
             return VulkanError.SwapChainSupportDetailsQueryFailure;
-        }
 
-        if (present_mode_count < 1) {
-            allocator.free(details.formats);
+        if (present_mode_count < 1)
             return VulkanError.SwapChainSupportDetailsQueryFailure;
-        }
 
-        details.present_modes = try allocator.alloc(c.VkPresentModeKHR, present_mode_count);
-        if (c.vkGetPhysicalDeviceSurfacePresentModesKHR(physical_device, vk_surface, &present_mode_count, details.present_modes.ptr) != c.VK_SUCCESS) {
-            allocator.free(details.formats);
-            allocator.free(details.present_modes);
+        present_modes = try allocator.alloc(c.VkPresentModeKHR, present_mode_count);
+        errdefer allocator.free(present_modes);
+        if (c.vkGetPhysicalDeviceSurfacePresentModesKHR(physical_device, vk_surface, &present_mode_count, present_modes.ptr) != c.VK_SUCCESS)
             return VulkanError.SwapChainSupportDetailsQueryFailure;
-        }
     }
 
-    return details;
+    return .{
+        .capabilities = surface_capabilities,
+        .formats = surface_formats,
+        .present_modes = present_modes,
+    };
 }
 
 /// choose preferred format.
@@ -422,6 +422,7 @@ pub fn create_image_views(
     swap_chain_image_format: c.VkFormat,
 ) ![]c.VkImageView {
     var swap_chain_image_views: []c.VkImageView = try allocator.alloc(c.VkImageView, swap_chain_images.len);
+    errdefer allocator.free(swap_chain_image_views);
     // create info for each image
     for (swap_chain_images, 0..) |swap_chain_image, i| {
         var image_view_create_info: c.VkImageViewCreateInfo = .{
@@ -448,10 +449,8 @@ pub fn create_image_views(
             },
         };
 
-        if (c.vkCreateImageView(device, &image_view_create_info, null, &swap_chain_image_views[i]) != c.VK_SUCCESS) {
-            allocator.free(swap_chain_image_views);
+        if (c.vkCreateImageView(device, &image_view_create_info, null, &swap_chain_image_views[i]) != c.VK_SUCCESS)
             return VulkanError.ImageViewCreateError;
-        }
     }
 
     return swap_chain_image_views;
