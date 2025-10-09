@@ -224,14 +224,19 @@ pub fn query_swapchain_support_details(
     // present modes
     {
         var present_mode_count: u32 = undefined;
-        if (c.vkGetPhysicalDeviceSurfacePresentModesKHR(physical_device, vk_surface, &present_mode_count, null) != c.VK_SUCCESS)
+        if (c.vkGetPhysicalDeviceSurfacePresentModesKHR(physical_device, vk_surface, &present_mode_count, null) != c.VK_SUCCESS) {
+            allocator.free(details.formats);
             return VulkanError.SwapChainSupportDetailsQueryFailure;
+        }
 
-        if (present_mode_count < 1)
+        if (present_mode_count < 1) {
+            allocator.free(details.formats);
             return VulkanError.SwapChainSupportDetailsQueryFailure;
+        }
 
         details.present_modes = try allocator.alloc(c.VkPresentModeKHR, present_mode_count);
         if (c.vkGetPhysicalDeviceSurfacePresentModesKHR(physical_device, vk_surface, &present_mode_count, details.present_modes.ptr) != c.VK_SUCCESS) {
+            allocator.free(details.formats);
             allocator.free(details.present_modes);
             return VulkanError.SwapChainSupportDetailsQueryFailure;
         }
