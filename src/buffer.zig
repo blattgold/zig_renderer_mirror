@@ -72,3 +72,49 @@ pub fn create_command_buffer(
 
     return command_buffer;
 }
+
+pub fn record_command_buffer(
+    render_pass: c.VkRenderPass,
+    command_buffer: c.VkCommandBuffer,
+    swap_chain_extent: c.VkExtent2D,
+    swap_chain_frame_buffers: []c.VkFramebuffer,
+    image_index: u32,
+    graphics_pipeline: c.VkPipeline,
+) !void {
+    const command_buffer_begin_info: c.VkCommandBufferBeginInfo = .{
+        .sType = c.VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        .flags = 0,
+        .pInheritanceInfo = null,
+    };
+
+    if (c.vkBeginCommandBuffer(command_buffer, &command_buffer_begin_info) != c.VK_SUCCESS)
+        return error.BeginCommandBuffer;
+
+    const clear_color: c.VkClearValue = .{
+        .color = .{
+            .float32 = .{ 0, 0, 0, 0 },
+        },
+    };
+
+    const render_pass_begin_info: c.VkRenderPassBeginInfo = .{
+        .sType = c.VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+        .renderPass = render_pass,
+        .framebuffer = swap_chain_frame_buffers[image_index],
+
+        .renderArea = .{
+            .offset = .{ .x = 0, .y = 0 },
+            .extent = swap_chain_extent,
+        },
+
+        .clearValueCount = 1,
+        .pClearValues = &clear_color,
+    };
+
+    c.vkCmdBeginRenderPass(command_buffer, &render_pass_begin_info, c.VK_SUBPASS_CONTENTS_INLINE);
+    c.vkCmdBindPipeline(command_buffer, c.VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline);
+    c.vkCmdDraw(command_buffer, 3, 1, 0, 0);
+    c.vkCmdEndRenderPass(command_buffer);
+
+    if (c.vkEndCommandBuffer(command_buffer) != c.VK_SUCCESS)
+        return error.EndCommandBuffer;
+}
