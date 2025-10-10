@@ -113,22 +113,34 @@ pub const VkContextIncompleteInit = struct {
         errdefer allocator.free(swap_chain_image_views);
         errdefer for (swap_chain_image_views) |swap_chain_image_view| c.vkDestroyImageView(device, swap_chain_image_view, null);
 
+        const render_pass = try pipeline_mod.create_render_pass(device, swap_chain_image_format);
+        errdefer c.vkDestroyRenderPass(device, render_pass, null);
+
+        const graphics_pipeline_layout = try pipeline_mod.create_graphics_pipeline_layout(device);
+        errdefer c.vkDestroyPipelineLayout(device, graphics_pipeline_layout, null);
+
         var graphics_pipeline: c.VkPipeline = undefined;
         {
             const vert_shader_code = try common.read_file(allocator, "./shaders/vert.spv");
             defer allocator.free(vert_shader_code);
             const vert_shader_module = try pipeline_mod.create_shader_module(device, vert_shader_code);
+            defer c.vkDestroyShaderModule(device, vert_shader_module, null);
 
             const frag_shader_code = try common.read_file(allocator, "./shaders/frag.spv");
             defer allocator.free(frag_shader_code);
             const frag_shader_module = try pipeline_mod.create_shader_module(device, frag_shader_code);
+            defer c.vkDestroyShaderModule(device, frag_shader_module, null);
 
-            graphics_pipeline = pipeline_mod.create_graphics_pipeline(
+            graphics_pipeline = try pipeline_mod.create_graphics_pipeline(
                 device,
+                swap_chain_extent,
+                graphics_pipeline_layout,
+                render_pass,
                 vert_shader_module,
                 frag_shader_module,
             );
         }
+        errdefer c.vkDestroyPipeline(device, graphics_pipeline, null);
 
         logger.log(.Debug, "VkContext created successfully", .{});
 
@@ -148,6 +160,10 @@ pub const VkContextIncompleteInit = struct {
             .swap_chain_image_format = swap_chain_image_format,
             .swap_chain_images = swap_chain_images, // needs to be freed
             .swap_chain_image_views = swap_chain_image_views, // needs to be freed
+
+            .graphics_pipeline = graphics_pipeline,
+            .graphics_pipeline_layout = graphics_pipeline_layout,
+            .render_pass = render_pass,
         };
     }
 };
@@ -168,6 +184,10 @@ pub const VkContext = struct {
     swap_chain_images: []c.VkImage,
     swap_chain_image_format: c.VkFormat,
     swap_chain_image_views: []c.VkImageView,
+
+    graphics_pipeline: c.VkPipeline,
+    graphics_pipeline_layout: c.VkPipelineLayout,
+    render_pass: c.VkRenderPass,
 
     pub fn init_incomplete(required_extensions: *ArrayList([*c]const u8)) !VkContextIncompleteInit {
         if (config.enable_validation_layers)
@@ -203,6 +223,9 @@ pub const VkContext = struct {
     pub fn deinit(self: *@This()) void {
         logger.log(.Debug, "unloading VkContext...", .{});
 
+        c.vkDestroyPipeline(self.device, self.graphics_pipeline, null);
+        c.vkDestroyRenderPass(self.device, self.render_pass, null);
+        c.vkDestroyPipelineLayout(self.device, self.graphics_pipeline_layout, null);
         for (self.swap_chain_image_views) |swap_chain_image_view|
             c.vkDestroyImageView(self.device, swap_chain_image_view, null);
 
