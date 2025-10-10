@@ -21,6 +21,23 @@ pub fn build(b: *std.Build) void {
     // target and optimize options) will be listed when running `zig build --help`
     // in this directory.
 
+    const vert = b.addSystemCommand(&.{"glslc"});
+    vert.addArgs(&.{
+        b.fmt("{s}", .{
+            "./shaders/shader.vert",
+        }),
+        "-o",
+        "./shaders/vert.spv",
+    });
+    const frag = b.addSystemCommand(&.{"glslc"});
+    frag.addArgs(&.{
+        b.fmt("{s}", .{
+            "./shaders/shader.frag",
+        }),
+        "-o",
+        "./shaders/frag.spv",
+    });
+
     // This creates a module, which represents a collection of source files alongside
     // some compilation options, such as optimization mode and linked system libraries.
     // Zig modules are the preferred way of making Zig code available to consumers.
@@ -83,6 +100,9 @@ pub fn build(b: *std.Build) void {
             .link_libc = true,
         }),
     });
+
+    exe.step.dependOn(&vert.step);
+    exe.step.dependOn(&frag.step);
 
     exe.root_module.linkSystemLibrary("vulkan", .{});
     exe.root_module.linkSystemLibrary("sdl3", .{});
