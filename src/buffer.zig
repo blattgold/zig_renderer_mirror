@@ -4,6 +4,8 @@ const common = @import("common.zig");
 
 const c = common.c;
 
+const QueueFamilyIndices = common.QueueFamilyIndices;
+
 pub fn create_framebuffers(
     allocator: std.mem.Allocator,
     device: c.VkDevice,
@@ -34,4 +36,21 @@ pub fn create_framebuffers(
     }
 
     return swap_chain_frame_buffers;
+}
+
+pub fn create_command_pool(
+    device: c.VkDevice,
+    queue_family_indices: QueueFamilyIndices,
+) !c.VkCommandPool {
+    const command_pool_create_info: c.VkCommandPoolCreateInfo = .{
+        .sType = c.VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+        .flags = c.VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+        .queueFamilyIndex = queue_family_indices.graphics_family,
+    };
+
+    var command_pool: c.VkCommandPool = undefined;
+    if (c.vkCreateCommandPool(device, &command_pool_create_info, null, &command_pool) != c.VK_SUCCESS)
+        return error.CreateCommandPool;
+
+    return command_pool;
 }

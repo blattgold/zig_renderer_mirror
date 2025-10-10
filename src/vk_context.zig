@@ -153,6 +153,9 @@ pub const VkContextIncompleteInit = struct {
         );
         errdefer for (swap_chain_frame_buffers) |swap_chain_frame_buffer| c.vkDestroyFramebuffer(device, swap_chain_frame_buffer, null);
 
+        const command_pool = try buffer_mod.create_command_pool(device, queue_family_indices);
+        errdefer c.vkDestroyCommandPool(device, command_pool, null);
+
         logger.log(.Debug, "VkContext created successfully", .{});
 
         return VkContext{
@@ -177,6 +180,8 @@ pub const VkContextIncompleteInit = struct {
             .render_pass = render_pass,
 
             .swap_chain_frame_buffers = swap_chain_frame_buffers,
+
+            .command_pool = command_pool,
         };
     }
 };
@@ -203,6 +208,8 @@ pub const VkContext = struct {
     render_pass: c.VkRenderPass,
 
     swap_chain_frame_buffers: []c.VkFramebuffer,
+
+    command_pool: c.VkCommandPool,
 
     pub fn init_incomplete(required_extensions: *ArrayList([*c]const u8)) !VkContextIncompleteInit {
         if (config.enable_validation_layers)
@@ -238,6 +245,7 @@ pub const VkContext = struct {
     pub fn deinit(self: *@This()) void {
         logger.log(.Debug, "unloading VkContext...", .{});
 
+        c.vkDestroyCommandPool(self.device, self.command_pool, null);
         for (self.swap_chain_frame_buffers) |swap_chain_frame_buffer|
             c.vkDestroyFramebuffer(self.device, swap_chain_frame_buffer, null);
 
