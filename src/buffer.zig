@@ -54,3 +54,21 @@ pub fn create_command_pool(
 
     return command_pool;
 }
+
+pub fn create_command_buffer(
+    device: c.VkDevice,
+    command_pool: c.VkCommandPool,
+) !c.VkCommandBuffer {
+    const command_buffer_allocate_info: c.VkCommandBufferAllocateInfo = .{
+        .sType = c.VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+        .commandPool = command_pool,
+        .level = c.VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+        .commandBufferCount = 1,
+    };
+
+    var command_buffer: c.VkCommandBuffer = undefined;
+    if (c.vkAllocateCommandBuffers(device, &command_buffer_allocate_info, &command_buffer) != c.VK_SUCCESS)
+        return error.AllocateCommandBuffers;
+
+    return command_buffer;
+}
