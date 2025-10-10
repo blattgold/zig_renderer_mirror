@@ -72,3 +72,22 @@ pub const c = @cImport({
     @cInclude("SDL3/SDL_vulkan.h");
     @cInclude("vulkan/vulkan.h");
 });
+
+pub fn read_file(
+    allocator: std.mem.Allocator,
+    file_path: []const u8,
+) ![]u8 {
+    var file = try std.fs.cwd().openFile(file_path, .{});
+    defer file.close();
+
+    const stat = try file.stat();
+    const buffer: []u8 = try allocator.alloc(u8, stat.size);
+
+    errdefer allocator.free(buffer);
+    var reader = file.reader(buffer);
+    _ = reader.readStreaming(buffer) catch |err| {
+        if (err == std.Io.Reader.Error.ReadFailed)
+            return err;
+    };
+    return buffer;
+}

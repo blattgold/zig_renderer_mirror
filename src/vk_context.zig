@@ -6,6 +6,7 @@ const common = @import("common.zig");
 const v_layers = @import("v_layers.zig");
 const instance_mod = @import("instance.zig");
 const device_mod = @import("device.zig");
+const pipeline_mod = @import("pipeline.zig");
 
 const c = common.c;
 
@@ -111,6 +112,24 @@ pub const VkContextIncompleteInit = struct {
         );
         errdefer allocator.free(swap_chain_image_views);
         errdefer for (swap_chain_image_views) |swap_chain_image_view| c.vkDestroyImageView(device, swap_chain_image_view, null);
+
+        var graphics_pipeline: c.VkPipeline = undefined;
+        {
+            const vert_shader_code = try common.read_file(allocator, "./shaders/vert.spv");
+            defer allocator.free(vert_shader_code);
+            const vert_shader_module = try pipeline_mod.create_shader_module(device, vert_shader_code);
+
+            const frag_shader_code = try common.read_file(allocator, "./shaders/frag.spv");
+            defer allocator.free(frag_shader_code);
+            const frag_shader_module = try pipeline_mod.create_shader_module(device, frag_shader_code);
+
+            graphics_pipeline = pipeline_mod.create_graphics_pipeline(
+                device,
+                vert_shader_module,
+                frag_shader_module,
+            );
+        }
+
         logger.log(.Debug, "VkContext created successfully", .{});
 
         return VkContext{
