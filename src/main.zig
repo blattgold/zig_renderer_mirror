@@ -54,4 +54,13 @@ pub fn main() !void {
         );
     }
     defer vk_context.deinit();
+
+    var t_start = std.time.milliTimestamp();
+    while (true) {
+        const t_now = std.time.milliTimestamp();
+        if (t_start - t_now > 100) {
+            try vk_context.render();
+            t_start = t_now;
+        }
+    }
 }

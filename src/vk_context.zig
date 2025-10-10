@@ -159,15 +159,6 @@ pub const VkContextIncompleteInit = struct {
         const command_buffer = try buffer_mod.create_command_buffer(device, command_pool);
         errdefer c.vkFreeCommandBuffers(device, command_pool, 1, &command_buffer);
 
-        try buffer_mod.record_command_buffer(
-            render_pass,
-            command_buffer,
-            swap_chain_extent,
-            swap_chain_frame_buffers,
-            0,
-            graphics_pipeline,
-        );
-
         logger.log(.Debug, "VkContext created successfully", .{});
 
         return VkContext{
@@ -254,6 +245,17 @@ pub const VkContext = struct {
             .vk_instance = vk_instance,
             .maybe_debug_messenger = maybe_debug_messenger,
         };
+    }
+
+    pub fn render(self: @This()) !void {
+        try buffer_mod.record_command_buffer(
+            self.render_pass,
+            self.command_buffer,
+            self.swap_chain_extent,
+            self.swap_chain_frame_buffers,
+            0,
+            self.graphics_pipeline,
+        );
     }
 
     pub fn deinit(self: *@This()) void {
