@@ -7,6 +7,7 @@ const v_layers = @import("v_layers.zig");
 const instance_mod = @import("instance.zig");
 const device_mod = @import("device.zig");
 const pipeline_mod = @import("pipeline.zig");
+const buffer_mod = @import("buffer.zig");
 
 const c = common.c;
 
@@ -139,8 +140,18 @@ pub const VkContextIncompleteInit = struct {
                 vert_shader_module,
                 frag_shader_module,
             );
+            logger.log(.Debug, "graphics_pipeline created successfully: 0x{x}", .{@intFromPtr(graphics_pipeline)});
         }
         errdefer c.vkDestroyPipeline(device, graphics_pipeline, null);
+
+        const swap_chain_frame_buffers = try buffer_mod.create_framebuffers(
+            allocator,
+            device,
+            render_pass,
+            swap_chain_image_views,
+            swap_chain_extent,
+        );
+        errdefer for (swap_chain_frame_buffers) |swap_chain_frame_buffer| c.vkDestroyFramebuffer(device, swap_chain_frame_buffer, null);
 
         logger.log(.Debug, "VkContext created successfully", .{});
 
@@ -164,6 +175,8 @@ pub const VkContextIncompleteInit = struct {
             .graphics_pipeline = graphics_pipeline,
             .graphics_pipeline_layout = graphics_pipeline_layout,
             .render_pass = render_pass,
+
+            .swap_chain_frame_buffers = swap_chain_frame_buffers,
         };
     }
 };
@@ -188,6 +201,8 @@ pub const VkContext = struct {
     graphics_pipeline: c.VkPipeline,
     graphics_pipeline_layout: c.VkPipelineLayout,
     render_pass: c.VkRenderPass,
+
+    swap_chain_frame_buffers: []c.VkFramebuffer,
 
     pub fn init_incomplete(required_extensions: *ArrayList([*c]const u8)) !VkContextIncompleteInit {
         if (config.enable_validation_layers)
@@ -222,6 +237,9 @@ pub const VkContext = struct {
 
     pub fn deinit(self: *@This()) void {
         logger.log(.Debug, "unloading VkContext...", .{});
+
+        for (self.swap_chain_frame_buffers) |swap_chain_frame_buffer|
+            c.vkDestroyFramebuffer(self.device, swap_chain_frame_buffer, null);
 
         c.vkDestroyPipeline(self.device, self.graphics_pipeline, null);
         c.vkDestroyRenderPass(self.device, self.render_pass, null);

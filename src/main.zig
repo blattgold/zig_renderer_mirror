@@ -34,14 +34,6 @@ pub fn main() !void {
         return SDLError.SDL_InitFailure;
     defer c.SDL_Quit();
 
-    {
-        const allocator = std.heap.page_allocator;
-
-        const file_contents = try common.read_file(allocator, "./shaders/frag.spv");
-        defer allocator.free(file_contents);
-        std.debug.print("{any}", .{file_contents});
-    }
-
     if (c.SDL_Vulkan_LoadLibrary(null) == false)
         return SDLError.SDL_Vulkan_LoadLibraryFailure;
 
