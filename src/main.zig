@@ -2,6 +2,7 @@ const std = @import("std");
 const common = @import("common.zig");
 const config = @import("config.zig");
 const vk_context_mod = @import("vk_context.zig");
+const logger = @import("logger.zig");
 
 const c = common.c;
 
@@ -36,6 +37,7 @@ pub fn main() !void {
 
     if (c.SDL_Vulkan_LoadLibrary(null) == false)
         return SDLError.SDL_Vulkan_LoadLibraryFailure;
+    defer c.SDL_Vulkan_UnloadLibrary();
 
     const window: ?*c.SDL_Window = c.SDL_CreateWindow(config.app_name, config.w_width, config.w_height, c.SDL_WINDOW_VULKAN);
     var required_extensions = try get_required_extensions();
@@ -55,12 +57,19 @@ pub fn main() !void {
     }
     defer vk_context.deinit();
 
-    var t_start = std.time.milliTimestamp();
-    while (true) {
-        const t_now = std.time.milliTimestamp();
-        if (t_start - t_now > 100) {
-            try vk_context.render();
-            t_start = t_now;
-        }
+    var t_total: i64 = 0;
+    var t_start = std.time.microTimestamp();
+    logger.log(.Debug, "entering main loop...", .{});
+    logger.log(.Debug, "t_start: {d}", .{t_start});
+    while (t_total < 5 * 1000 * 1000) {
+        const t_now = std.time.microTimestamp();
+        const t_delta = t_now - t_start;
+        logger.log(.Debug, "t_now: {d}", .{t_now});
+        logger.log(.Debug, "t_delta: {d}", .{t_delta});
+        t_total += t_delta;
+        try vk_context.render();
+        t_start = t_now;
     }
+
+    _ = c.vkDeviceWaitIdle(vk_context.device);
 }

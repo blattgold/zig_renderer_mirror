@@ -14,9 +14,13 @@ pub fn create_semaphore(device: c.VkDevice) !c.VkSemaphore {
     return semaphore;
 }
 
-pub fn create_fence(device: c.VkDevice) !c.VkFence {
+pub fn create_fence(
+    device: c.VkDevice,
+    create_signaled: bool,
+) !c.VkFence {
     const fence_create_info: c.VkFenceCreateInfo = .{
         .sType = c.VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+        .flags = if (create_signaled) c.VK_FENCE_CREATE_SIGNALED_BIT else 0,
     };
 
     var fence: c.VkFence = undefined;

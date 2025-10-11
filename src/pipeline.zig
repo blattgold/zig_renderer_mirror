@@ -208,12 +208,26 @@ pub fn create_render_pass(
         .pColorAttachments = &color_attachment_reference,
     };
 
+    const sub_pass_dependency: c.VkSubpassDependency = .{
+        .srcSubpass = c.VK_SUBPASS_EXTERNAL,
+        .dstSubpass = 0,
+
+        .srcStageMask = c.VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        .srcAccessMask = 0,
+
+        .dstStageMask = c.VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        .dstAccessMask = c.VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+    };
+
     const render_pass_create_info: c.VkRenderPassCreateInfo = .{
         .sType = c.VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
         .attachmentCount = 1,
         .pAttachments = &color_attachment,
         .subpassCount = 1,
         .pSubpasses = &sub_pass_description,
+
+        .dependencyCount = 1,
+        .pDependencies = &sub_pass_dependency,
     };
 
     var render_pass: c.VkRenderPass = undefined;

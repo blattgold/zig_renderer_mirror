@@ -164,7 +164,7 @@ pub const VkContextIncompleteInit = struct {
         errdefer c.vkDestroySemaphore(device, semaphore_image_available, null);
         const semaphore_render_finished: c.VkSemaphore = try sync_mod.create_semaphore(device);
         errdefer c.vkDestroySemaphore(device, semaphore_render_finished, null);
-        const fence_in_flight: c.VkFence = try sync_mod.create_fence(device);
+        const fence_in_flight: c.VkFence = try sync_mod.create_fence(device, true);
         errdefer c.vkDestroyFence(device, fence_in_flight, null);
 
         logger.log(.Debug, "VkContext created successfully", .{});
@@ -264,14 +264,79 @@ pub const VkContext = struct {
     }
 
     pub fn render(self: @This()) !void {
+        if (c.vkWaitForFences(self.device, 1, &self.fence_in_flight, c.VK_TRUE, std.math.maxInt(u64)) != c.VK_SUCCESS)
+            return error.WaitForFences;
+        if (c.vkResetFences(self.device, 1, &self.fence_in_flight) != c.VK_SUCCESS)
+            return error.ResetFences;
+
+        var image_index: u32 = undefined;
+        if (c.vkAcquireNextImageKHR(
+            self.device,
+            self.swap_chain,
+            std.math.maxInt(u64),
+            self.semaphore_image_available,
+            null,
+            @ptrCast(&image_index),
+        ) != c.VK_SUCCESS)
+            return error.AcquireNextImage;
+
+        if (c.vkResetCommandBuffer(self.command_buffer, 0) != c.VK_SUCCESS)
+            return error.ResetCommandBuffer;
+
         try buffer_mod.record_command_buffer(
             self.render_pass,
             self.command_buffer,
             self.swap_chain_extent,
             self.swap_chain_frame_buffers,
-            0,
+            image_index,
             self.graphics_pipeline,
         );
+
+        const wait_semaphores: [1]c.VkSemaphore = .{
+            self.semaphore_image_available,
+        };
+
+        const signal_semaphores: [1]c.VkSemaphore = .{
+            self.semaphore_render_finished,
+        };
+
+        const pipeline_stage_flags: c.VkPipelineStageFlags = c.VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+
+        const submit_info: c.VkSubmitInfo = .{
+            .sType = c.VK_STRUCTURE_TYPE_SUBMIT_INFO,
+            .waitSemaphoreCount = 1,
+            .pWaitSemaphores = &wait_semaphores,
+            .pWaitDstStageMask = &pipeline_stage_flags,
+
+            .commandBufferCount = 1,
+            .pCommandBuffers = &self.command_buffer,
+
+            .signalSemaphoreCount = 1,
+            .pSignalSemaphores = &signal_semaphores,
+        };
+
+        if (c.vkQueueSubmit(self.graphics_queue, 1, &submit_info, self.fence_in_flight) != c.VK_SUCCESS)
+            return error.QueueSubmit;
+
+        const swap_chains: [1]c.VkSwapchainKHR = .{
+            self.swap_chain,
+        };
+
+        const present_info: c.VkPresentInfoKHR = .{
+            .sType = c.VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+
+            .waitSemaphoreCount = 1,
+            .pWaitSemaphores = &signal_semaphores,
+
+            .swapchainCount = 1,
+            .pSwapchains = &swap_chains,
+            .pImageIndices = &image_index,
+
+            .pResults = null,
+        };
+
+        if (c.vkQueuePresentKHR(self.present_queue, &present_info) != c.VK_SUCCESS)
+            return error.QueuePresent;
     }
 
     pub fn deinit(self: *@This()) void {
