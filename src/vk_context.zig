@@ -8,6 +8,7 @@ const instance_mod = @import("instance.zig");
 const device_mod = @import("device.zig");
 const pipeline_mod = @import("pipeline.zig");
 const buffer_mod = @import("buffer.zig");
+const sync_mod = @import("sync.zig");
 
 const c = common.c;
 
@@ -159,6 +160,13 @@ pub const VkContextIncompleteInit = struct {
         const command_buffer = try buffer_mod.create_command_buffer(device, command_pool);
         errdefer c.vkFreeCommandBuffers(device, command_pool, 1, &command_buffer);
 
+        const semaphore_image_available: c.VkSemaphore = try sync_mod.create_semaphore(device);
+        errdefer c.vkDestroySemaphore(device, semaphore_image_available, null);
+        const semaphore_render_finished: c.VkSemaphore = try sync_mod.create_semaphore(device);
+        errdefer c.vkDestroySemaphore(device, semaphore_render_finished, null);
+        const fence_in_flight: c.VkFence = try sync_mod.create_fence(device);
+        errdefer c.vkDestroyFence(device, fence_in_flight, null);
+
         logger.log(.Debug, "VkContext created successfully", .{});
 
         return VkContext{
@@ -186,6 +194,10 @@ pub const VkContextIncompleteInit = struct {
 
             .command_pool = command_pool,
             .command_buffer = command_buffer,
+
+            .semaphore_image_available = semaphore_image_available,
+            .semaphore_render_finished = semaphore_render_finished,
+            .fence_in_flight = fence_in_flight,
         };
     }
 };
@@ -215,6 +227,10 @@ pub const VkContext = struct {
 
     command_pool: c.VkCommandPool,
     command_buffer: c.VkCommandBuffer,
+
+    semaphore_image_available: c.VkSemaphore,
+    semaphore_render_finished: c.VkSemaphore,
+    fence_in_flight: c.VkFence,
 
     pub fn init_incomplete(required_extensions: *ArrayList([*c]const u8)) !VkContextIncompleteInit {
         if (config.enable_validation_layers)
@@ -260,6 +276,10 @@ pub const VkContext = struct {
 
     pub fn deinit(self: *@This()) void {
         logger.log(.Debug, "unloading VkContext...", .{});
+
+        c.vkDestroySemaphore(self.device, self.semaphore_image_available, null);
+        c.vkDestroySemaphore(self.device, self.semaphore_render_finished, null);
+        c.vkDestroyFence(self.device, self.fence_in_flight, null);
 
         c.vkFreeCommandBuffers(self.device, self.command_pool, 1, &self.command_buffer);
         c.vkDestroyCommandPool(self.device, self.command_pool, null);
