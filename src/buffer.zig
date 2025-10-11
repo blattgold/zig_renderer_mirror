@@ -55,22 +55,32 @@ pub fn create_command_pool(
     return command_pool;
 }
 
-pub fn create_command_buffer(
+/// it is recommended to free and vkDestroy previous command buffers before creating new ones.
+///
+/// returned slice must be freed.
+pub fn create_command_buffers(
+    allocator: std.mem.Allocator,
     device: c.VkDevice,
     command_pool: c.VkCommandPool,
-) !c.VkCommandBuffer {
+    command_buffer_amount: u32,
+) ![]c.VkCommandBuffer {
+    // requesting 0 buffers is a nonsensical request
+    std.debug.assert(command_buffer_amount != 0);
+
     const command_buffer_allocate_info: c.VkCommandBufferAllocateInfo = .{
         .sType = c.VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
         .commandPool = command_pool,
         .level = c.VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-        .commandBufferCount = 1,
+        .commandBufferCount = command_buffer_amount,
     };
 
-    var command_buffer: c.VkCommandBuffer = undefined;
-    if (c.vkAllocateCommandBuffers(device, &command_buffer_allocate_info, &command_buffer) != c.VK_SUCCESS)
+    var command_buffers: []c.VkCommandBuffer = try allocator.alloc(c.VkCommandBuffer, command_buffer_amount);
+    errdefer allocator.free(command_buffers);
+
+    if (c.vkAllocateCommandBuffers(device, &command_buffer_allocate_info, &command_buffers[0]) != c.VK_SUCCESS)
         return error.AllocateCommandBuffers;
 
-    return command_buffer;
+    return command_buffers;
 }
 
 pub fn record_command_buffer(

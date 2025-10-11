@@ -156,16 +156,32 @@ pub const VkContextIncompleteInit = struct {
 
         const command_pool = try buffer_mod.create_command_pool(device, queue_family_indices);
         errdefer c.vkDestroyCommandPool(device, command_pool, null);
+        logger.log(.Debug, "created command pool successfully", .{});
 
-        const command_buffer = try buffer_mod.create_command_buffer(device, command_pool);
-        errdefer c.vkFreeCommandBuffers(device, command_pool, 1, &command_buffer);
+        const command_buffers = try buffer_mod.create_command_buffers(allocator, device, command_pool, config.max_frames_in_flight);
+        errdefer c.vkFreeCommandBuffers(device, command_pool, config.max_frames_in_flight, &command_buffers[0]);
+        logger.log(.Debug, "created command buffers(amount: {d}) successfully", .{config.max_frames_in_flight});
 
-        const semaphore_image_available: c.VkSemaphore = try sync_mod.create_semaphore(device);
-        errdefer c.vkDestroySemaphore(device, semaphore_image_available, null);
-        const semaphore_render_finished: c.VkSemaphore = try sync_mod.create_semaphore(device);
-        errdefer c.vkDestroySemaphore(device, semaphore_render_finished, null);
-        const fence_in_flight: c.VkFence = try sync_mod.create_fence(device, true);
-        errdefer c.vkDestroyFence(device, fence_in_flight, null);
+        const semaphores_image_available: []c.VkSemaphore = try sync_mod.create_semaphores(
+            allocator,
+            device,
+            config.max_frames_in_flight,
+        );
+        errdefer for (semaphores_image_available) |semaphore| c.vkDestroySemaphore(device, semaphore, null);
+        const semaphores_render_finished: []c.VkSemaphore = try sync_mod.create_semaphores(
+            allocator,
+            device,
+            config.max_frames_in_flight,
+        );
+        errdefer for (semaphores_render_finished) |semaphore| c.vkDestroySemaphore(device, semaphore, null);
+        const fences_in_flight: []c.VkFence = try sync_mod.create_fences(
+            allocator,
+            device,
+            config.max_frames_in_flight,
+            true,
+        );
+        errdefer for (fences_in_flight) |fence| c.vkDestroyFence(device, fence, null);
+        logger.log(.Debug, "Semaphores and Fences(amount: {d}) created successfully", .{config.max_frames_in_flight});
 
         logger.log(.Debug, "VkContext created successfully", .{});
 
@@ -193,11 +209,13 @@ pub const VkContextIncompleteInit = struct {
             .swap_chain_frame_buffers = swap_chain_frame_buffers,
 
             .command_pool = command_pool,
-            .command_buffer = command_buffer,
+            .command_buffers = command_buffers,
 
-            .semaphore_image_available = semaphore_image_available,
-            .semaphore_render_finished = semaphore_render_finished,
-            .fence_in_flight = fence_in_flight,
+            .semaphores_image_available = semaphores_image_available,
+            .semaphores_render_finished = semaphores_render_finished,
+            .fences_in_flight = fences_in_flight,
+
+            .current_frame = 0,
         };
     }
 };
@@ -226,11 +244,13 @@ pub const VkContext = struct {
     swap_chain_frame_buffers: []c.VkFramebuffer,
 
     command_pool: c.VkCommandPool,
-    command_buffer: c.VkCommandBuffer,
+    command_buffers: []c.VkCommandBuffer,
 
-    semaphore_image_available: c.VkSemaphore,
-    semaphore_render_finished: c.VkSemaphore,
-    fence_in_flight: c.VkFence,
+    semaphores_image_available: []c.VkSemaphore,
+    semaphores_render_finished: []c.VkSemaphore,
+    fences_in_flight: []c.VkFence,
+
+    current_frame: usize,
 
     pub fn init_incomplete(required_extensions: *ArrayList([*c]const u8)) !VkContextIncompleteInit {
         if (config.enable_validation_layers)
@@ -263,10 +283,12 @@ pub const VkContext = struct {
         };
     }
 
-    pub fn render(self: @This()) !void {
-        if (c.vkWaitForFences(self.device, 1, &self.fence_in_flight, c.VK_TRUE, std.math.maxInt(u64)) != c.VK_SUCCESS)
+    pub fn render(self: *@This()) !void {
+        const current_frame_modulo_index: usize = self.current_frame % config.max_frames_in_flight;
+
+        if (c.vkWaitForFences(self.device, 1, &self.fences_in_flight[current_frame_modulo_index], c.VK_TRUE, std.math.maxInt(u64)) != c.VK_SUCCESS)
             return error.WaitForFences;
-        if (c.vkResetFences(self.device, 1, &self.fence_in_flight) != c.VK_SUCCESS)
+        if (c.vkResetFences(self.device, 1, &self.fences_in_flight[current_frame_modulo_index]) != c.VK_SUCCESS)
             return error.ResetFences;
 
         var image_index: u32 = undefined;
@@ -274,18 +296,18 @@ pub const VkContext = struct {
             self.device,
             self.swap_chain,
             std.math.maxInt(u64),
-            self.semaphore_image_available,
+            self.semaphores_image_available[current_frame_modulo_index],
             null,
             @ptrCast(&image_index),
         ) != c.VK_SUCCESS)
             return error.AcquireNextImage;
 
-        if (c.vkResetCommandBuffer(self.command_buffer, 0) != c.VK_SUCCESS)
+        if (c.vkResetCommandBuffer(self.command_buffers[current_frame_modulo_index], 0) != c.VK_SUCCESS)
             return error.ResetCommandBuffer;
 
         try buffer_mod.record_command_buffer(
             self.render_pass,
-            self.command_buffer,
+            self.command_buffers[current_frame_modulo_index],
             self.swap_chain_extent,
             self.swap_chain_frame_buffers,
             image_index,
@@ -293,11 +315,11 @@ pub const VkContext = struct {
         );
 
         const wait_semaphores: [1]c.VkSemaphore = .{
-            self.semaphore_image_available,
+            self.semaphores_image_available[current_frame_modulo_index],
         };
 
         const signal_semaphores: [1]c.VkSemaphore = .{
-            self.semaphore_render_finished,
+            self.semaphores_render_finished[current_frame_modulo_index],
         };
 
         const pipeline_stage_flags: c.VkPipelineStageFlags = c.VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
@@ -309,13 +331,13 @@ pub const VkContext = struct {
             .pWaitDstStageMask = &pipeline_stage_flags,
 
             .commandBufferCount = 1,
-            .pCommandBuffers = &self.command_buffer,
+            .pCommandBuffers = &self.command_buffers[current_frame_modulo_index],
 
             .signalSemaphoreCount = 1,
             .pSignalSemaphores = &signal_semaphores,
         };
 
-        if (c.vkQueueSubmit(self.graphics_queue, 1, &submit_info, self.fence_in_flight) != c.VK_SUCCESS)
+        if (c.vkQueueSubmit(self.graphics_queue, 1, &submit_info, self.fences_in_flight[current_frame_modulo_index]) != c.VK_SUCCESS)
             return error.QueueSubmit;
 
         const swap_chains: [1]c.VkSwapchainKHR = .{
@@ -337,16 +359,24 @@ pub const VkContext = struct {
 
         if (c.vkQueuePresentKHR(self.present_queue, &present_info) != c.VK_SUCCESS)
             return error.QueuePresent;
+
+        self.current_frame += 1;
     }
 
     pub fn deinit(self: *@This()) void {
         logger.log(.Debug, "unloading VkContext...", .{});
 
-        c.vkDestroySemaphore(self.device, self.semaphore_image_available, null);
-        c.vkDestroySemaphore(self.device, self.semaphore_render_finished, null);
-        c.vkDestroyFence(self.device, self.fence_in_flight, null);
+        for (self.semaphores_image_available, self.semaphores_render_finished, self.fences_in_flight) |
+            semaphore_image_available,
+            semaphore_render_finished,
+            fence_in_flight,
+        | {
+            c.vkDestroySemaphore(self.device, semaphore_image_available, null);
+            c.vkDestroySemaphore(self.device, semaphore_render_finished, null);
+            c.vkDestroyFence(self.device, fence_in_flight, null);
+        }
 
-        c.vkFreeCommandBuffers(self.device, self.command_pool, 1, &self.command_buffer);
+        c.vkFreeCommandBuffers(self.device, self.command_pool, config.max_frames_in_flight, &self.command_buffers[0]);
         c.vkDestroyCommandPool(self.device, self.command_pool, null);
         for (self.swap_chain_frame_buffers) |swap_chain_frame_buffer|
             c.vkDestroyFramebuffer(self.device, swap_chain_frame_buffer, null);

@@ -271,6 +271,7 @@ pub fn select_swap_surface_format(available_formats: []c.VkSurfaceFormatKHR) c.V
 
     return available_formats[0];
 }
+
 /// choose preferred present mode.
 ///
 /// if preferred present mode is unavailable, picks c.VK_PRESENT_MODE_FIFO_KHR.

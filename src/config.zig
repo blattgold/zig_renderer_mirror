@@ -12,6 +12,7 @@ pub const validation_layers: []const []const u8 = &[_][]const u8{
 pub const device_extensions: []const []const u8 = &[_][]const u8{
     c.VK_KHR_SWAPCHAIN_EXTENSION_NAME,
 };
+pub const max_frames_in_flight = 2;
 pub const log_level_default = LogLevel.Warn;
 pub const log_level = if (debug) LogLevel.Debug else log_level_default;
 

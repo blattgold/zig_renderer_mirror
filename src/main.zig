@@ -64,12 +64,11 @@ pub fn main() !void {
     while (t_total < 5 * 1000 * 1000) {
         const t_now = std.time.microTimestamp();
         const t_delta = t_now - t_start;
-        logger.log(.Debug, "t_now: {d}", .{t_now});
-        logger.log(.Debug, "t_delta: {d}", .{t_delta});
         t_total += t_delta;
         try vk_context.render();
         t_start = t_now;
     }
+    logger.log(.Debug, "t_end: {d}", .{t_start});
 
     _ = c.vkDeviceWaitIdle(vk_context.device);
 }
