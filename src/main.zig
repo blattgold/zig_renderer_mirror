@@ -18,9 +18,9 @@ const SDLError = error{
     SDL_Vulkan_CreateSurfaceFailure,
 };
 
-fn get_required_extensions() !ArrayList([*c]const u8) {
-    const allocator = std.heap.page_allocator;
+const allocator = std.heap.page_allocator;
 
+fn get_required_extensions() !ArrayList([*c]const u8) {
     var extension_count_sdl: u32 = undefined;
     const extensions_sdl = c.SDL_Vulkan_GetInstanceExtensions(&extension_count_sdl);
 
@@ -44,16 +44,20 @@ pub fn main() !void {
 
     var vk_context: VkContext = undefined;
     {
-        const vk_context_incomplete: VkContextIncompleteInit = try VkContext.init_incomplete(&required_extensions);
+        const required_extensions_slice = try required_extensions.toOwnedSlice(allocator);
+        defer allocator.free(required_extensions_slice);
 
-        var vk_surface: c.VkSurfaceKHR = undefined;
-        if (c.SDL_Vulkan_CreateSurface(window, vk_context_incomplete.vk_instance, null, &vk_surface) == false)
+        var vk_context_builder = try vk_context_mod.create_vk_context_builder(required_extensions_slice);
+        const instance = vk_context_builder.get_instance();
+
+        var surface: c.VkSurfaceKHR = undefined;
+        if (c.SDL_Vulkan_CreateSurface(window, instance, null, &surface) == false)
             return SDLError.SDL_Vulkan_CreateSurfaceFailure;
 
-        vk_context = try vk_context_incomplete.init_complete(
-            vk_surface,
-            .{ .h = config.w_height, .w = config.w_width },
-        );
+        vk_context = try vk_context_builder
+            .set_surface(surface)
+            .set_window_frame_buffer_size(.{ .h = config.w_height, .w = config.w_width })
+            .build();
     }
     defer vk_context.deinit();
 
