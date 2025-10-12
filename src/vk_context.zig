@@ -9,6 +9,7 @@ const device_mod = @import("device.zig");
 const pipeline_mod = @import("pipeline.zig");
 const buffer_mod = @import("buffer.zig");
 const sync_mod = @import("sync.zig");
+const swap_chain_mod = @import("swap_chain.zig");
 
 const c = common.c;
 
