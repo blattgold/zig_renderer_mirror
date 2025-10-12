@@ -30,6 +30,21 @@ fn get_required_extensions() !ArrayList([*c]const u8) {
     return extensions;
 }
 
+fn sdl_get_window_buffer_size(context: ?*anyopaque) WindowFrameBufferSize {
+    std.debug.assert(context != null);
+    const window = @as(?*c.SDL_Window, @ptrCast(context.?));
+
+    var w: c_int = undefined;
+    var h: c_int = undefined;
+    if (!c.SDL_GetWindowSize(window, &w, &h))
+        @panic("failed to get window size");
+
+    return WindowFrameBufferSize{
+        .w = @intCast(w),
+        .h = @intCast(h),
+    };
+}
+
 pub fn main() !void {
     if (c.SDL_Init(c.SDL_INIT_VIDEO) == false)
         return SDLError.SDL_InitFailure;
@@ -39,34 +54,34 @@ pub fn main() !void {
         return SDLError.SDL_Vulkan_LoadLibraryFailure;
     defer c.SDL_Vulkan_UnloadLibrary();
 
-    const window: ?*c.SDL_Window = c.SDL_CreateWindow(config.app_name, config.w_width, config.w_height, c.SDL_WINDOW_VULKAN);
+    const window: ?*c.SDL_Window = c.SDL_CreateWindow(config.app_name, config.w_width, config.w_height, c.SDL_WINDOW_VULKAN | c.SDL_WINDOW_RESIZABLE);
     var required_extensions = try get_required_extensions();
 
-    var vk_context: VkContext = undefined;
-    {
-        const required_extensions_slice = try required_extensions.toOwnedSlice(allocator);
-        defer allocator.free(required_extensions_slice);
+    const required_extensions_slice = try required_extensions.toOwnedSlice(allocator);
 
-        var vk_context_builder = try vk_context_mod.create_vk_context_builder(required_extensions_slice);
-        const instance = vk_context_builder.get_instance();
+    var vk_context_builder = try vk_context_mod.create_vk_context_builder(required_extensions_slice);
+    allocator.free(required_extensions_slice);
 
-        var surface: c.VkSurfaceKHR = undefined;
-        if (c.SDL_Vulkan_CreateSurface(window, instance, null, &surface) == false)
-            return SDLError.SDL_Vulkan_CreateSurfaceFailure;
+    const instance = vk_context_builder.get_instance();
 
-        vk_context = try vk_context_builder
-            .set_surface(surface)
-            .set_window_frame_buffer_size(.{ .h = config.w_height, .w = config.w_width })
-            .build();
-    }
+    var surface: c.VkSurfaceKHR = undefined;
+    if (c.SDL_Vulkan_CreateSurface(window, instance, null, &surface) == false)
+        return SDLError.SDL_Vulkan_CreateSurfaceFailure;
+
+    var vk_context = try vk_context_builder
+        .set_surface(surface)
+        .set_get_window_frame_buffer_size_fn(sdl_get_window_buffer_size)
+        .set_get_window_frame_buffer_size_context(@ptrCast(window))
+        .build();
+
     defer vk_context.deinit();
 
-    try main_loop(&vk_context);
+    try main_loop(&vk_context, window);
 
     _ = c.vkDeviceWaitIdle(vk_context.device);
 }
 
-fn main_loop(vk_context: *VkContext) !void {
+fn main_loop(vk_context: *VkContext, window: ?*c.SDL_Window) !void {
     var event: c.SDL_Event = undefined;
     var quit: bool = false;
 
@@ -77,8 +92,12 @@ fn main_loop(vk_context: *VkContext) !void {
     while (!quit) {
         // events
         while (c.SDL_PollEvent(&event)) {
-            if (event.type == c.SDL_EVENT_QUIT)
+            if (event.type == c.SDL_EVENT_QUIT) {
                 quit = true;
+            } else if (event.type == c.SDL_EVENT_WINDOW_RESIZED) {
+                _ = c.SDL_SetWindowSize(window, event.window.data1, event.window.data2);
+                vk_context.frame_buffer_resized = true;
+            }
         }
 
         // rendering

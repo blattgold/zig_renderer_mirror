@@ -18,6 +18,7 @@ const ArrayList = std.ArrayList;
 const QueueFamilyIndices = common.QueueFamilyIndices;
 const WindowFrameBufferSize = common.WindowFrameBufferSize;
 const SwapChainSupportDetails = common.SwapChainSupportDetails;
+const SwapChainState = swap_chain_mod.SwapChainState;
 
 const PhysicalDeviceResult = device_mod.PhysicalDeviceResult;
 
@@ -28,6 +29,9 @@ pub const VkContext = struct {
     vk_instance: c.VkInstance,
     maybe_debug_messenger: c.VkDebugUtilsMessengerEXT,
 
+    get_window_frame_buffer_size_fn: *const fn (context: ?*anyopaque) WindowFrameBufferSize,
+    get_window_frame_buffer_size_context: ?*anyopaque,
+
     queue_family_indices: QueueFamilyIndices,
     graphics_queue: c.VkQueue,
     present_queue: c.VkQueue,
@@ -35,11 +39,7 @@ pub const VkContext = struct {
 
     vk_surface: c.VkSurfaceKHR,
 
-    swap_chain: c.VkSwapchainKHR,
-    swap_chain_extent: c.VkExtent2D,
-    swap_chain_images: []c.VkImage,
-    swap_chain_image_format: c.VkFormat,
-    swap_chain_image_views: []c.VkImageView,
+    swap_chain_state: SwapChainState,
 
     graphics_pipeline: c.VkPipeline,
     graphics_pipeline_layout: c.VkPipelineLayout,
@@ -54,6 +54,7 @@ pub const VkContext = struct {
     semaphores_render_finished: []c.VkSemaphore,
     fences_in_flight: []c.VkFence,
 
+    frame_buffer_resized: bool,
     current_frame: usize,
 
     pub fn render(self: *@This()) !void {
@@ -61,19 +62,33 @@ pub const VkContext = struct {
 
         if (c.vkWaitForFences(self.device, 1, &self.fences_in_flight[current_frame_modulo_index], c.VK_TRUE, std.math.maxInt(u64)) != c.VK_SUCCESS)
             return error.WaitForFences;
-        if (c.vkResetFences(self.device, 1, &self.fences_in_flight[current_frame_modulo_index]) != c.VK_SUCCESS)
-            return error.ResetFences;
 
         var image_index: u32 = undefined;
-        if (c.vkAcquireNextImageKHR(
+        const acquire_next_image_result = c.vkAcquireNextImageKHR(
             self.device,
-            self.swap_chain,
+            self.swap_chain_state.swap_chain,
             std.math.maxInt(u64),
             self.semaphores_image_available[current_frame_modulo_index],
             null,
             @ptrCast(&image_index),
-        ) != c.VK_SUCCESS)
-            return error.AcquireNextImage;
+        );
+
+        if (self.frame_buffer_resized) {
+            self.frame_buffer_resized = false;
+            try self.recreate_swap_chain();
+        } else {
+            switch (acquire_next_image_result) {
+                c.VK_SUCCESS => {},
+                c.VK_ERROR_OUT_OF_DATE_KHR, c.VK_SUBOPTIMAL_KHR => {
+                    self.frame_buffer_resized = false;
+                    try self.recreate_swap_chain();
+                },
+                else => return error.AcquireNextImage,
+            }
+        }
+
+        if (c.vkResetFences(self.device, 1, &self.fences_in_flight[current_frame_modulo_index]) != c.VK_SUCCESS)
+            return error.ResetFences;
 
         if (c.vkResetCommandBuffer(self.command_buffers[current_frame_modulo_index], 0) != c.VK_SUCCESS)
             return error.ResetCommandBuffer;
@@ -81,7 +96,7 @@ pub const VkContext = struct {
         try buffer_mod.record_command_buffer(
             self.render_pass,
             self.command_buffers[current_frame_modulo_index],
-            self.swap_chain_extent,
+            self.swap_chain_state.extent,
             self.swap_chain_frame_buffers,
             image_index,
             self.graphics_pipeline,
@@ -114,7 +129,7 @@ pub const VkContext = struct {
             return error.QueueSubmit;
 
         const swap_chains: [1]c.VkSwapchainKHR = .{
-            self.swap_chain,
+            self.swap_chain_state.swap_chain,
         };
 
         const present_info: c.VkPresentInfoKHR = .{
@@ -137,8 +152,20 @@ pub const VkContext = struct {
     }
 
     pub fn recreate_swap_chain(self: *@This()) !void {
-        c.vkDeviceWaitIdle(self.device);
-        // TODO
+        _ = c.vkDeviceWaitIdle(self.device);
+        const new_window_buffer_size = self.get_window_frame_buffer_size_fn(self.get_window_frame_buffer_size_context);
+        try self.swap_chain_state.recreate(new_window_buffer_size);
+
+        for (self.swap_chain_frame_buffers) |buffer| c.vkDestroyFramebuffer(self.device, buffer, null);
+        allocator.free(self.swap_chain_frame_buffers);
+
+        self.swap_chain_frame_buffers = try buffer_mod.create_framebuffers(
+            allocator,
+            self.device,
+            self.render_pass,
+            self.swap_chain_state.image_views,
+            self.swap_chain_state.extent,
+        );
     }
 
     pub fn deinit(self: *@This()) void {
@@ -162,13 +189,9 @@ pub const VkContext = struct {
         c.vkDestroyPipeline(self.device, self.graphics_pipeline, null);
         c.vkDestroyRenderPass(self.device, self.render_pass, null);
         c.vkDestroyPipelineLayout(self.device, self.graphics_pipeline_layout, null);
-        for (self.swap_chain_image_views) |swap_chain_image_view|
-            c.vkDestroyImageView(self.device, swap_chain_image_view, null);
 
-        allocator.free(self.swap_chain_image_views);
-        allocator.free(self.swap_chain_images);
+        self.swap_chain_state.deinit();
 
-        c.vkDestroySwapchainKHR(self.device, self.swap_chain, null);
         c.vkDestroySurfaceKHR(self.vk_instance, self.vk_surface, null);
         c.vkDestroyDevice(self.device, null);
         if (self.maybe_debug_messenger != null)
@@ -184,7 +207,8 @@ const VkContextBuilder = struct {
     maybe_debug_messenger: c.VkDebugUtilsMessengerEXT,
 
     surface: c.VkSurfaceKHR,
-    window_frame_buffer_size: ?WindowFrameBufferSize,
+    get_window_frame_buffer_size_fn: ?*const fn (context: ?*anyopaque) WindowFrameBufferSize,
+    get_window_frame_buffer_size_context: ?*anyopaque,
 
     pub fn set_surface(
         self: *@This(),
@@ -194,11 +218,19 @@ const VkContextBuilder = struct {
         return self;
     }
 
-    pub fn set_window_frame_buffer_size(
+    pub fn set_get_window_frame_buffer_size_fn(
         self: *@This(),
-        window_frame_buffer_size: WindowFrameBufferSize,
+        get_window_frame_buffer_size_fn: fn (context: ?*anyopaque) WindowFrameBufferSize,
     ) *@This() {
-        self.window_frame_buffer_size = window_frame_buffer_size;
+        self.get_window_frame_buffer_size_fn = get_window_frame_buffer_size_fn;
+        return self;
+    }
+
+    pub fn set_get_window_frame_buffer_size_context(
+        self: *@This(),
+        get_window_frame_buffer_size_context: ?*anyopaque,
+    ) *@This() {
+        self.get_window_frame_buffer_size_context = get_window_frame_buffer_size_context;
         return self;
     }
 
@@ -215,6 +247,10 @@ const VkContextBuilder = struct {
         errdefer if (config.enable_validation_layers) v_layers.destroy_debug_utils_messenger_ext(self.instance, self.maybe_debug_messenger, null);
 
         try self.validate();
+
+        const surface = self.surface;
+        const get_window_frame_buffer_size_fn = self.get_window_frame_buffer_size_fn.?;
+        const get_window_frame_buffer_size_context = self.get_window_frame_buffer_size_context.?;
 
         var physical_device: c.VkPhysicalDevice = undefined;
         var queue_family_indices: QueueFamilyIndices = undefined;
@@ -240,65 +276,27 @@ const VkContextBuilder = struct {
             logger.log(.Debug, "present queue: 0x{x}", .{@intFromPtr(present_queue)});
         }
 
-        var swap_chain_surface_capabilities: c.VkSurfaceCapabilitiesKHR = undefined;
-        var swap_chain_surface_format: c.VkSurfaceFormatKHR = undefined;
-        var swap_chain_present_mode: c.VkPresentModeKHR = undefined;
-        var swap_chain_extent: c.VkExtent2D = undefined;
-        {
-            const swap_chain_support_details = try device_mod.query_swapchain_support_details(
-                allocator,
-                physical_device,
-                self.surface,
-            );
-            defer swap_chain_support_details.deinit(allocator);
-            swap_chain_surface_capabilities = swap_chain_support_details.capabilities;
-            swap_chain_surface_format = device_mod.select_swap_surface_format(swap_chain_support_details.formats);
-            swap_chain_present_mode = device_mod.select_swap_present_mode(swap_chain_support_details.present_modes);
-            swap_chain_extent = device_mod.select_swap_extent(
-                swap_chain_support_details.capabilities,
-                self.window_frame_buffer_size.?,
-            );
-        }
-
-        const swap_chain = try device_mod.create_swap_chain(
-            device,
+        const swap_chain_support_details = try swap_chain_mod.query_swapchain_support_details(
+            allocator,
+            physical_device,
             self.surface,
-            swap_chain_surface_capabilities,
-            swap_chain_surface_format,
-            swap_chain_present_mode,
-            swap_chain_extent,
-            queue_family_indices,
         );
-        errdefer c.vkDestroySwapchainKHR(device, swap_chain, null);
 
-        var swap_chain_images: []c.VkImage = undefined;
-        {
-            var image_count: u32 = undefined;
-            if (c.vkGetSwapchainImagesKHR(device, swap_chain, &image_count, null) != c.VK_SUCCESS)
-                return VulkanError.SwapChainGetImagesFailure;
-
-            swap_chain_images = try allocator.alloc(c.VkImage, image_count);
-            if (c.vkGetSwapchainImagesKHR(device, swap_chain, &image_count, swap_chain_images.ptr) != c.VK_SUCCESS) {
-                allocator.free(swap_chain_images);
-                return VulkanError.SwapChainGetImagesFailure;
-            }
-            logger.log(.Debug, "loaded swap chain images successfully", .{});
-        }
-        errdefer allocator.free(swap_chain_images);
-
-        const swap_chain_image_format = swap_chain_surface_format.format;
-        const swap_chain_image_views = try device_mod.create_image_views(
+        var swap_chain_state = try swap_chain_mod.create_swap_chain_state(
             allocator,
             device,
-            swap_chain_images,
-            swap_chain_image_format,
+            surface,
+            swap_chain_support_details.capabilities,
+            swap_chain_mod.select_swap_surface_format(swap_chain_support_details.formats),
+            swap_chain_mod.select_swap_present_mode(swap_chain_support_details.present_modes),
+            queue_family_indices,
+            get_window_frame_buffer_size_fn(get_window_frame_buffer_size_context),
         );
-        errdefer allocator.free(swap_chain_image_views);
-        errdefer for (swap_chain_image_views) |swap_chain_image_view| c.vkDestroyImageView(device, swap_chain_image_view, null);
+        errdefer swap_chain_state.deinit();
 
         var render_pass: c.VkRenderPass = undefined;
         {
-            render_pass = try pipeline_mod.create_render_pass(device, swap_chain_image_format);
+            render_pass = try pipeline_mod.create_render_pass(device, swap_chain_state.surface_format.format);
             logger.log(.Debug, "created render pass successfully", .{});
         }
         errdefer c.vkDestroyRenderPass(device, render_pass, null);
@@ -324,7 +322,7 @@ const VkContextBuilder = struct {
 
             graphics_pipeline = try pipeline_mod.create_graphics_pipeline(
                 device,
-                swap_chain_extent,
+                swap_chain_state.extent,
                 graphics_pipeline_layout,
                 render_pass,
                 vert_shader_module,
@@ -338,8 +336,8 @@ const VkContextBuilder = struct {
             allocator,
             device,
             render_pass,
-            swap_chain_image_views,
-            swap_chain_extent,
+            swap_chain_state.image_views,
+            swap_chain_state.extent,
         );
         errdefer for (swap_chain_frame_buffers) |swap_chain_frame_buffer| c.vkDestroyFramebuffer(device, swap_chain_frame_buffer, null);
 
@@ -384,6 +382,9 @@ const VkContextBuilder = struct {
             .vk_instance = self.instance,
             .maybe_debug_messenger = self.maybe_debug_messenger,
 
+            .get_window_frame_buffer_size_fn = get_window_frame_buffer_size_fn,
+            .get_window_frame_buffer_size_context = get_window_frame_buffer_size_context,
+
             .queue_family_indices = queue_family_indices,
             .graphics_queue = graphics_queue,
             .present_queue = present_queue,
@@ -391,11 +392,7 @@ const VkContextBuilder = struct {
 
             .vk_surface = self.surface,
 
-            .swap_chain = swap_chain,
-            .swap_chain_extent = swap_chain_extent,
-            .swap_chain_image_format = swap_chain_image_format,
-            .swap_chain_images = swap_chain_images, // needs to be freed
-            .swap_chain_image_views = swap_chain_image_views, // needs to be freed
+            .swap_chain_state = swap_chain_state,
 
             .graphics_pipeline = graphics_pipeline,
             .graphics_pipeline_layout = graphics_pipeline_layout,
@@ -411,6 +408,7 @@ const VkContextBuilder = struct {
             .fences_in_flight = fences_in_flight,
 
             .current_frame = 0,
+            .frame_buffer_resized = false,
         };
     }
 
@@ -418,7 +416,8 @@ const VkContextBuilder = struct {
         self: *@This(),
     ) !void {
         std.debug.assert(self.instance != null);
-        std.debug.assert(self.window_frame_buffer_size != null);
+        std.debug.assert(self.get_window_frame_buffer_size_fn != null);
+        std.debug.assert(self.get_window_frame_buffer_size_context != null);
     }
 };
 
@@ -476,6 +475,7 @@ pub fn create_vk_context_builder(
         .maybe_debug_messenger = maybe_debug_messenger,
 
         .surface = null,
-        .window_frame_buffer_size = null,
+        .get_window_frame_buffer_size_fn = null,
+        .get_window_frame_buffer_size_context = null,
     };
 }
