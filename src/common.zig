@@ -84,8 +84,8 @@ pub fn read_file(
     const buffer: []u8 = try allocator.alloc(u8, stat.size);
 
     errdefer allocator.free(buffer);
-    var reader = file.reader(buffer);
-    _ = reader.readStreaming(buffer) catch |err| {
+    var reader = file.readerStreaming(buffer);
+    _ = reader.interface.adaptToOldInterface().readAll(buffer) catch |err| {
         if (err == std.Io.Reader.Error.ReadFailed)
             return err;
     };

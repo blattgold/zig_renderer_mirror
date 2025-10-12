@@ -57,18 +57,33 @@ pub fn main() !void {
     }
     defer vk_context.deinit();
 
+    try main_loop(&vk_context);
+
+    _ = c.vkDeviceWaitIdle(vk_context.device);
+}
+
+fn main_loop(vk_context: *VkContext) !void {
+    var event: c.SDL_Event = undefined;
+    var quit: bool = false;
+
     var t_total: i64 = 0;
     var t_start = std.time.microTimestamp();
     logger.log(.Debug, "entering main loop...", .{});
-    logger.log(.Debug, "t_start: {d}", .{t_start});
-    while (t_total < 5 * 1000 * 1000) {
+    logger.log(.Debug, "t_start: {d}us", .{t_start});
+    while (!quit) {
+        // events
+        while (c.SDL_PollEvent(&event)) {
+            if (event.type == c.SDL_EVENT_QUIT)
+                quit = true;
+        }
+
+        // rendering
         const t_now = std.time.microTimestamp();
         const t_delta = t_now - t_start;
         t_total += t_delta;
         try vk_context.render();
         t_start = t_now;
     }
-    logger.log(.Debug, "t_end: {d}", .{t_start});
-
-    _ = c.vkDeviceWaitIdle(vk_context.device);
+    logger.log(.Debug, "t_total: {d}us, {d}ms, {d}s", .{ t_total, @as(f64, @floatFromInt(t_total)) / 1000, @as(f64, @floatFromInt(t_total)) / 1000 / 1000 });
+    logger.log(.Debug, "t_end: {d}us", .{t_start});
 }

@@ -115,10 +115,18 @@ pub const VkContextIncompleteInit = struct {
         errdefer allocator.free(swap_chain_image_views);
         errdefer for (swap_chain_image_views) |swap_chain_image_view| c.vkDestroyImageView(device, swap_chain_image_view, null);
 
-        const render_pass = try pipeline_mod.create_render_pass(device, swap_chain_image_format);
+        var render_pass: c.VkRenderPass = undefined;
+        {
+            render_pass = try pipeline_mod.create_render_pass(device, swap_chain_image_format);
+            logger.log(.Debug, "created render pass successfully", .{});
+        }
         errdefer c.vkDestroyRenderPass(device, render_pass, null);
 
-        const graphics_pipeline_layout = try pipeline_mod.create_graphics_pipeline_layout(device);
+        var graphics_pipeline_layout: c.VkPipelineLayout = undefined;
+        {
+            graphics_pipeline_layout = try pipeline_mod.create_graphics_pipeline_layout(device);
+            logger.log(.Debug, "created graphics pipeline layout successfully", .{});
+        }
         errdefer c.vkDestroyPipelineLayout(device, graphics_pipeline_layout, null);
 
         var graphics_pipeline: c.VkPipeline = undefined;
@@ -154,13 +162,19 @@ pub const VkContextIncompleteInit = struct {
         );
         errdefer for (swap_chain_frame_buffers) |swap_chain_frame_buffer| c.vkDestroyFramebuffer(device, swap_chain_frame_buffer, null);
 
-        const command_pool = try buffer_mod.create_command_pool(device, queue_family_indices);
+        var command_pool: c.VkCommandPool = undefined;
+        {
+            command_pool = try buffer_mod.create_command_pool(device, queue_family_indices);
+            logger.log(.Debug, "created command pool successfully", .{});
+        }
         errdefer c.vkDestroyCommandPool(device, command_pool, null);
-        logger.log(.Debug, "created command pool successfully", .{});
 
-        const command_buffers = try buffer_mod.create_command_buffers(allocator, device, command_pool, config.max_frames_in_flight);
+        var command_buffers: []c.VkCommandBuffer = undefined;
+        {
+            command_buffers = try buffer_mod.create_command_buffers(allocator, device, command_pool, config.max_frames_in_flight);
+            logger.log(.Debug, "created command buffers(amount: {d}) successfully", .{config.max_frames_in_flight});
+        }
         errdefer c.vkFreeCommandBuffers(device, command_pool, config.max_frames_in_flight, &command_buffers[0]);
-        logger.log(.Debug, "created command buffers(amount: {d}) successfully", .{config.max_frames_in_flight});
 
         const semaphores_image_available: []c.VkSemaphore = try sync_mod.create_semaphores(
             allocator,
