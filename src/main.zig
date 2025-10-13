@@ -8,7 +8,6 @@ const c = common.c;
 
 const ArrayList = std.ArrayList;
 const VkContext = vk_context_mod.VkContext;
-const VkContextIncompleteInit = vk_context_mod.VkContextIncompleteInit;
 const WindowFrameBufferSize = common.WindowFrameBufferSize;
 
 const SDLError = error{

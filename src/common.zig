@@ -1,4 +1,5 @@
 const std = @import("std");
+const util = @import("util.zig");
 
 pub const LogLevel = enum(u2) {
     Debug,
@@ -62,16 +63,53 @@ pub const SwapChainSupportDetails = struct {
     }
 };
 
-pub const WindowFrameBufferSize = struct {
-    w: u32,
-    h: u32,
-};
-
 pub const c = @cImport({
     @cInclude("SDL3/SDL.h");
     @cInclude("SDL3/SDL_vulkan.h");
     @cInclude("vulkan/vulkan.h");
 });
+
+const Vec2 = util.Vec2;
+const Vec3 = util.Vec3;
+
+pub const Vertex = struct {
+    pos: Vec2,
+    col: Vec3,
+
+    pub fn get_binding_description() c.VkVertexInputBindingDescription {
+        return .{
+            .binding = 0,
+            .stride = @sizeOf(Vertex),
+            .inputRate = c.VK_VERTEX_INPUT_RATE_VERTEX,
+        };
+    }
+
+    pub fn get_attribute_descriptions() [2]c.VkVertexInputAttributeDescription {
+        return .{ .{
+            .binding = 0,
+            .location = 0,
+            .format = c.VK_FORMAT_R32G32_SFLOAT,
+            .offset = @offsetOf(Vertex, "pos"),
+        }, .{
+            .binding = 0,
+            .location = 1,
+            .format = c.VK_FORMAT_R32G32B32_SFLOAT,
+            .offset = @offsetOf(Vertex, "col"),
+        } };
+    }
+};
+
+// temporary TODO: replace
+pub const vertices: []Vertex = .{
+    .{ .pos = Vec2.new(0, -0.5), .col = Vec3.new(1, 0, 0) },
+    .{ .pos = Vec2.new(0.5, 0.5), .col = Vec3.new(0, 1, 0) },
+    .{ .pos = Vec2.new(-0.5, 0.5), .col = Vec3.new(0, 0, 1) },
+};
+
+pub const WindowFrameBufferSize = struct {
+    w: u32,
+    h: u32,
+};
 
 pub fn read_file(
     allocator: std.mem.Allocator,

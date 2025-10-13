@@ -48,12 +48,15 @@ pub fn create_graphics_pipeline(
         shader_stage_create_infos[1] = frag_shader_stage_create_info;
     }
 
+    const binding_description = common.Vertex.get_binding_description();
+    const attribute_descriptions = common.Vertex.get_attribute_descriptions();
+
     const vertex_input_state_create_info: c.VkPipelineVertexInputStateCreateInfo = .{
         .sType = c.VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-        .vertexBindingDescriptionCount = 0,
-        .pVertexBindingDescriptions = null,
-        .vertexAttributeDescriptionCount = 0,
-        .pVertexAttributeDescriptions = null,
+        .vertexBindingDescriptionCount = 1,
+        .pVertexBindingDescriptions = &binding_description,
+        .vertexAttributeDescriptionCount = @intCast(attribute_descriptions.len),
+        .pVertexAttributeDescriptions = &attribute_descriptions,
     };
 
     const input_assembly_state_create_info: c.VkPipelineInputAssemblyStateCreateInfo = .{
