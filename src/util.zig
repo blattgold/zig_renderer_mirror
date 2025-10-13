@@ -1,5 +1,5 @@
 pub const Vec2 = struct {
-    content: f32[2],
+    content: [2]f32,
 
     pub fn x(self: @This()) f32 {
         self.content[0];
@@ -22,7 +22,7 @@ pub const Vec2 = struct {
 };
 
 pub const Vec3 = struct {
-    content: f32[3],
+    content: [3]f32,
 
     pub fn x(self: @This()) f32 {
         self.content[0];
@@ -50,7 +50,7 @@ pub const Vec3 = struct {
 };
 
 pub const Vec4 = struct {
-    content: f32[4],
+    content: [4]f32,
 
     pub fn x(self: @This()) f32 {
         self.content[0];

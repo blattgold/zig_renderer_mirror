@@ -246,3 +246,19 @@ pub fn create_device(physical_device: c.VkPhysicalDevice, indices: QueueFamilyIn
 
     return device;
 }
+
+pub fn select_suitable_memory_type_index(
+    physical_device: c.VkPhysicalDevice,
+    type_filter: u32,
+    properties: c.VkMemoryPropertyFlags,
+) !u32 {
+    var physical_device_memory_properties: c.VkPhysicalDeviceMemoryProperties = undefined;
+    c.vkGetPhysicalDeviceMemoryProperties(physical_device, &physical_device_memory_properties);
+
+    for (0..physical_device_memory_properties.memoryTypeCount) |i|
+        if ((type_filter & (@as(u32, 1) << @intCast(i)) == 0) and
+            physical_device_memory_properties.memoryTypes[i].propertyFlags & properties == properties)
+            return @intCast(i);
+
+    return error.NoSuitableMemoryTypeFound;
+}

@@ -100,7 +100,7 @@ pub const Vertex = struct {
 };
 
 // temporary TODO: replace
-pub const vertices: []Vertex = .{
+pub const vertices = [_]Vertex{
     .{ .pos = Vec2.new(0, -0.5), .col = Vec3.new(1, 0, 0) },
     .{ .pos = Vec2.new(0.5, 0.5), .col = Vec3.new(0, 1, 0) },
     .{ .pos = Vec2.new(-0.5, 0.5), .col = Vec3.new(0, 0, 1) },

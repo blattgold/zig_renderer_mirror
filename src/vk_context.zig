@@ -47,6 +47,9 @@ pub const VkContext = struct {
 
     swap_chain_frame_buffers: []c.VkFramebuffer,
 
+    vertex_buffer: c.VkBuffer,
+    vertex_buffer_memory: c.VkDeviceMemory,
+
     command_pool: c.VkCommandPool,
     command_buffers: []c.VkCommandBuffer,
 
@@ -100,6 +103,7 @@ pub const VkContext = struct {
             self.swap_chain_frame_buffers,
             image_index,
             self.graphics_pipeline,
+            self.vertex_buffer,
         );
 
         const wait_semaphores: [1]c.VkSemaphore = .{
@@ -170,6 +174,9 @@ pub const VkContext = struct {
 
     pub fn deinit(self: *@This()) void {
         logger.log(.Debug, "unloading VkContext...", .{});
+
+        c.vkDestroyBuffer(self.device, self.vertex_buffer, null);
+        c.vkFreeMemory(self.device, self.vertex_buffer_memory, null);
 
         for (self.semaphores_image_available, self.semaphores_render_finished, self.fences_in_flight) |
             semaphore_image_available,
@@ -348,6 +355,53 @@ const VkContextBuilder = struct {
         }
         errdefer c.vkDestroyCommandPool(device, command_pool, null);
 
+        var vertex_buffer: c.VkBuffer = undefined;
+        var vertex_buffer_memory: c.VkDeviceMemory = undefined;
+        {
+            vertex_buffer = try buffer_mod.create_vertex_buffer(device);
+            errdefer c.vkDestroyBuffer(device, vertex_buffer, null);
+
+            var vertex_buffer_memory_requirements: c.VkMemoryRequirements = undefined;
+            c.vkGetBufferMemoryRequirements(device, vertex_buffer, &vertex_buffer_memory_requirements);
+            logger.log(
+                .Debug,
+                "vertex buffer memory requirements: size: {d}, alignment: {d}, memoryTypeBits: {b}",
+                .{
+                    vertex_buffer_memory_requirements.size,
+                    vertex_buffer_memory_requirements.alignment,
+                    vertex_buffer_memory_requirements.memoryTypeBits,
+                },
+            );
+
+            const memory_type_index = try device_mod.select_suitable_memory_type_index(
+                physical_device,
+                vertex_buffer_memory_requirements.memoryTypeBits,
+                c.VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | c.VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+            );
+            vertex_buffer_memory = try buffer_mod.alloc_vertex_buffer_memory(
+                device,
+                vertex_buffer_memory_requirements,
+                memory_type_index,
+            );
+            errdefer c.vkFreeMemory(device, vertex_buffer_memory, null);
+
+            if (c.vkBindBufferMemory(device, vertex_buffer, vertex_buffer_memory, 0) != c.VK_SUCCESS)
+                return error.BindBufferMemory;
+
+            //var mapped_data: []common.Vertex = undefined; //try allocator.alloc(common.Vertex, common.vertices.len);
+            //defer allocator.free(mapped_data);
+
+            var mapped_data: [common.vertices.len]common.Vertex = undefined;
+            _ = c.vkMapMemory(device, vertex_buffer_memory, 0, @sizeOf(common.Vertex) * common.vertices.len, 0, @ptrCast(@alignCast(&mapped_data)));
+            @memcpy(&mapped_data, &common.vertices);
+            logger.log(.Debug, "{any}", .{mapped_data});
+            _ = c.vkUnmapMemory(device, vertex_buffer_memory);
+
+            logger.log(.Debug, "created vertex buffer successfully", .{});
+        }
+        errdefer c.vkFreeMemory(device, vertex_buffer_memory, null);
+        errdefer c.vkDestroyBuffer(device, vertex_buffer, null);
+
         var command_buffers: []c.VkCommandBuffer = undefined;
         {
             command_buffers = try buffer_mod.create_command_buffers(allocator, device, command_pool, config.max_frames_in_flight);
@@ -399,6 +453,9 @@ const VkContextBuilder = struct {
             .render_pass = render_pass,
 
             .swap_chain_frame_buffers = swap_chain_frame_buffers,
+
+            .vertex_buffer = vertex_buffer,
+            .vertex_buffer_memory = vertex_buffer_memory,
 
             .command_pool = command_pool,
             .command_buffers = command_buffers,
