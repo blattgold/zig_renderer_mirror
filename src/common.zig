@@ -72,7 +72,7 @@ pub const c = @cImport({
 const Vec2 = util.Vec2;
 const Vec3 = util.Vec3;
 
-pub const Vertex = extern struct {
+pub const Vertex = packed struct {
     pos: Vec2,
     col: Vec3,
 

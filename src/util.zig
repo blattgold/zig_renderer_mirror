@@ -1,16 +1,9 @@
-pub const Vec2 = extern struct {
-    content: [2]f32,
-
-    pub fn x(self: @This()) f32 {
-        self.content[0];
-    }
-
-    pub fn y(self: @This()) f32 {
-        self.content[1];
-    }
+pub const Vec2 = packed struct {
+    x: f32,
+    y: f32,
 
     pub fn new(x_: f32, y_: f32) @This() {
-        return @This(){ .content = .{ x_, y_ } };
+        return @This(){ .x = x_, .y = y_ };
     }
 
     pub fn addVec2(self: @This(), other: @This()) @This() {
@@ -21,23 +14,13 @@ pub const Vec2 = extern struct {
     }
 };
 
-pub const Vec3 = extern struct {
-    content: [3]f32,
-
-    pub fn x(self: @This()) f32 {
-        self.content[0];
-    }
-
-    pub fn y(self: @This()) f32 {
-        self.content[1];
-    }
-
-    pub fn z(self: @This()) f32 {
-        self.content[2];
-    }
+pub const Vec3 = packed struct {
+    x: f32,
+    y: f32,
+    z: f32,
 
     pub fn new(x_: f32, y_: f32, z_: f32) @This() {
-        return @This(){ .content = .{ x_, y_, z_ } };
+        return @This(){ .x = x_, .y = y_, .z = z_ };
     }
 
     pub fn addVec3(self: @This(), other: @This()) @This() {
@@ -49,7 +32,7 @@ pub const Vec3 = extern struct {
     }
 };
 
-pub const Vec4 = extern struct {
+pub const Vec4 = packed struct {
     content: [4]f32,
 
     pub fn x(self: @This()) f32 {

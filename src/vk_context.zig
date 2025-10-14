@@ -390,15 +390,10 @@ const VkContextBuilder = struct {
             if (c.vkBindBufferMemory(device, vertex_buffer, vertex_buffer_memory, 0) != c.VK_SUCCESS)
                 return error.BindBufferMemory;
 
-            //var mapped_data: []common.Vertex = undefined; //try allocator.alloc(common.Vertex, common.vertices.len);
-            //defer allocator.free(mapped_data);
-
-            var mapped_data: *anyopaque = undefined;
+            var mapped_data: *[common.vertices.len]common.Vertex = undefined;
             const vert_slice_size = @sizeOf(common.Vertex) * common.vertices.len;
             _ = c.vkMapMemory(device, vertex_buffer_memory, 0, vert_slice_size, 0, @ptrCast(&mapped_data));
-            @memcpy(@as(*[common.vertices.len]common.Vertex, @ptrCast(&mapped_data)), &common.vertices);
-            const from_mapped = @as(*[common.vertices.len]common.Vertex, @ptrCast(&mapped_data));
-            logger.log(.Debug, "mapped_transmitted_data: {any}", .{from_mapped});
+            @memcpy(mapped_data, &common.vertices);
             _ = c.vkUnmapMemory(device, vertex_buffer_memory);
 
             logger.log(.Debug, "created vertex buffer successfully", .{});
