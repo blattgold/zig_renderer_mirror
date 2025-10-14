@@ -72,7 +72,7 @@ pub const c = @cImport({
 const Vec2 = util.Vec2;
 const Vec3 = util.Vec3;
 
-pub const Vertex = struct {
+pub const Vertex = extern struct {
     pos: Vec2,
     col: Vec3,
 
@@ -104,6 +104,12 @@ pub const vertices = [_]Vertex{
     .{ .pos = Vec2.new(0, -0.5), .col = Vec3.new(1, 0, 0) },
     .{ .pos = Vec2.new(0.5, 0.5), .col = Vec3.new(0, 1, 0) },
     .{ .pos = Vec2.new(-0.5, 0.5), .col = Vec3.new(0, 0, 1) },
+};
+
+pub const vertices_raw = [_][5]f32{
+    .{ 0, -0.5, 1, 0, 0 },
+    .{ 0.5, 0.5, 0, 1, 0 },
+    .{ -0.5, 0.5, 0, 0, 1 },
 };
 
 pub const WindowFrameBufferSize = struct {

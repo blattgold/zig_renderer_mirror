@@ -256,7 +256,7 @@ pub fn select_suitable_memory_type_index(
     c.vkGetPhysicalDeviceMemoryProperties(physical_device, &physical_device_memory_properties);
 
     for (0..physical_device_memory_properties.memoryTypeCount) |i|
-        if ((type_filter & (@as(u32, 1) << @intCast(i)) == 0) and
+        if ((type_filter & (@as(usize, 1) << @intCast(i)) != 0) and
             physical_device_memory_properties.memoryTypes[i].propertyFlags & properties == properties)
             return @intCast(i);
 

@@ -1,4 +1,4 @@
-pub const Vec2 = struct {
+pub const Vec2 = extern struct {
     content: [2]f32,
 
     pub fn x(self: @This()) f32 {
@@ -21,7 +21,7 @@ pub const Vec2 = struct {
     }
 };
 
-pub const Vec3 = struct {
+pub const Vec3 = extern struct {
     content: [3]f32,
 
     pub fn x(self: @This()) f32 {
@@ -49,7 +49,7 @@ pub const Vec3 = struct {
     }
 };
 
-pub const Vec4 = struct {
+pub const Vec4 = extern struct {
     content: [4]f32,
 
     pub fn x(self: @This()) f32 {

@@ -365,10 +365,12 @@ const VkContextBuilder = struct {
             c.vkGetBufferMemoryRequirements(device, vertex_buffer, &vertex_buffer_memory_requirements);
             logger.log(
                 .Debug,
-                "vertex buffer memory requirements: size: {d}, alignment: {d}, memoryTypeBits: {b}",
+                "vertex buffer memory requirements: size: {d}, alignment: {d}, memoryTypeBits: {b}, memoryTypeBits: {d}, memoryTypeBits: {x}",
                 .{
                     vertex_buffer_memory_requirements.size,
                     vertex_buffer_memory_requirements.alignment,
+                    vertex_buffer_memory_requirements.memoryTypeBits,
+                    vertex_buffer_memory_requirements.memoryTypeBits,
                     vertex_buffer_memory_requirements.memoryTypeBits,
                 },
             );
@@ -391,10 +393,12 @@ const VkContextBuilder = struct {
             //var mapped_data: []common.Vertex = undefined; //try allocator.alloc(common.Vertex, common.vertices.len);
             //defer allocator.free(mapped_data);
 
-            var mapped_data: [common.vertices.len]common.Vertex = undefined;
-            _ = c.vkMapMemory(device, vertex_buffer_memory, 0, @sizeOf(common.Vertex) * common.vertices.len, 0, @ptrCast(@alignCast(&mapped_data)));
-            @memcpy(&mapped_data, &common.vertices);
-            logger.log(.Debug, "{any}", .{mapped_data});
+            var mapped_data: *anyopaque = undefined;
+            const vert_slice_size = @sizeOf(common.Vertex) * common.vertices.len;
+            _ = c.vkMapMemory(device, vertex_buffer_memory, 0, vert_slice_size, 0, @ptrCast(&mapped_data));
+            @memcpy(@as(*[common.vertices.len]common.Vertex, @ptrCast(&mapped_data)), &common.vertices);
+            const from_mapped = @as(*[common.vertices.len]common.Vertex, @ptrCast(&mapped_data));
+            logger.log(.Debug, "mapped_transmitted_data: {any}", .{from_mapped});
             _ = c.vkUnmapMemory(device, vertex_buffer_memory);
 
             logger.log(.Debug, "created vertex buffer successfully", .{});

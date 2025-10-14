@@ -159,8 +159,8 @@ pub fn record_command_buffer(
     c.vkCmdBeginRenderPass(command_buffer, &render_pass_begin_info, c.VK_SUBPASS_CONTENTS_INLINE);
     c.vkCmdBindPipeline(command_buffer, c.VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline);
 
-    var vertex_buffers: [1]c.VkBuffer = .{vertex_buffer};
-    var offsets: [1]c.VkDeviceSize = .{0};
+    const vertex_buffers: [1]c.VkBuffer = .{vertex_buffer};
+    const offsets: [1]c.VkDeviceSize = .{0};
     c.vkCmdBindVertexBuffers(command_buffer, 0, 1, &vertex_buffers, &offsets);
 
     c.vkCmdDraw(command_buffer, @intCast(common.vertices.len), 1, 0, 0);
