@@ -106,12 +106,6 @@ pub const vertices = [_]Vertex{
     .{ .pos = Vec2.new(-0.5, 0.5), .col = Vec3.new(0, 0, 1) },
 };
 
-pub const vertices_raw = [_][5]f32{
-    .{ 0, -0.5, 1, 0, 0 },
-    .{ 0.5, 0.5, 0, 1, 0 },
-    .{ -0.5, 0.5, 0, 0, 1 },
-};
-
 pub const WindowFrameBufferSize = struct {
     w: u32,
     h: u32,
