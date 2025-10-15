@@ -36,12 +36,12 @@ pub const QueueFamilyIndicesOpt = struct {
     graphics_family: ?u32,
     present_family: ?u32,
 
-    pub fn is_complete(self: @This()) bool {
+    pub fn isComplete(self: @This()) bool {
         return self.graphics_family != null and self.present_family != null;
     }
 
-    pub fn to_queue_family_indices(self: @This()) ?QueueFamilyIndices {
-        if (self.is_complete()) {
+    pub fn toQueueFamilyIndices(self: @This()) ?QueueFamilyIndices {
+        if (self.isComplete()) {
             return QueueFamilyIndices{
                 .graphics_family = self.graphics_family.?,
                 .present_family = self.present_family.?,
@@ -52,7 +52,7 @@ pub const QueueFamilyIndicesOpt = struct {
     }
 };
 
-pub const SwapChainSupportDetails = struct {
+pub const SwapchainSupportDetails = struct {
     capabilities: c.VkSurfaceCapabilitiesKHR,
     formats: []c.VkSurfaceFormatKHR,
     present_modes: []c.VkPresentModeKHR,
@@ -76,7 +76,7 @@ pub const Vertex = packed struct {
     pos: Vec2,
     col: Vec3,
 
-    pub fn get_binding_description() c.VkVertexInputBindingDescription {
+    pub fn getBindingDescription() c.VkVertexInputBindingDescription {
         return .{
             .binding = 0,
             .stride = @sizeOf(Vertex),
@@ -84,7 +84,7 @@ pub const Vertex = packed struct {
         };
     }
 
-    pub fn get_attribute_descriptions() [2]c.VkVertexInputAttributeDescription {
+    pub fn getAttributeDescription() [2]c.VkVertexInputAttributeDescription {
         return .{ .{
             .binding = 0,
             .location = 0,
@@ -111,7 +111,7 @@ pub const WindowFrameBufferSize = struct {
     h: u32,
 };
 
-pub fn read_file(
+pub fn readFile(
     allocator: std.mem.Allocator,
     file_path: []const u8,
 ) ![]u8 {

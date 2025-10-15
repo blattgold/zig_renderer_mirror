@@ -6,7 +6,7 @@ const c = common.c;
 
 const QueueFamilyIndices = common.QueueFamilyIndices;
 
-pub fn create_framebuffers(
+pub fn createFramebuffers(
     allocator: std.mem.Allocator,
     device: c.VkDevice,
     render_pass: c.VkRenderPass,
@@ -38,7 +38,7 @@ pub fn create_framebuffers(
     return swap_chain_frame_buffers;
 }
 
-pub fn create_vertex_buffer(
+pub fn createVertexBuffer(
     device: c.VkDevice,
 ) !c.VkBuffer {
     const vertex_buffer_create_info: c.VkBufferCreateInfo = .{
@@ -55,7 +55,7 @@ pub fn create_vertex_buffer(
     return vertex_buffer;
 }
 
-pub fn alloc_vertex_buffer_memory(
+pub fn allocVertexBufferMemory(
     device: c.VkDevice,
     vertex_buffer_memory_requirements: c.VkMemoryRequirements,
     memory_type_index: u32,
@@ -73,7 +73,7 @@ pub fn alloc_vertex_buffer_memory(
     return vertex_buffer_memory;
 }
 
-pub fn create_command_pool(
+pub fn createCommandPool(
     device: c.VkDevice,
     queue_family_indices: QueueFamilyIndices,
 ) !c.VkCommandPool {
@@ -93,7 +93,7 @@ pub fn create_command_pool(
 /// it is recommended to free and vkDestroy previous command buffers before creating new ones.
 ///
 /// returned slice must be freed.
-pub fn create_command_buffers(
+pub fn createCommandBuffers(
     allocator: std.mem.Allocator,
     device: c.VkDevice,
     command_pool: c.VkCommandPool,
@@ -118,7 +118,7 @@ pub fn create_command_buffers(
     return command_buffers;
 }
 
-pub fn record_command_buffer(
+pub fn recordCommandBuffer(
     render_pass: c.VkRenderPass,
     command_buffer: c.VkCommandBuffer,
     swap_chain_extent: c.VkExtent2D,

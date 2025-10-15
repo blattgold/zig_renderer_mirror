@@ -4,7 +4,7 @@ const common = @import("common.zig");
 
 const c = common.c;
 
-pub fn create_semaphores(
+pub fn createSemaphores(
     allocator: std.mem.Allocator,
     device: c.VkDevice,
     semaphore_amount: u32,
@@ -22,7 +22,7 @@ pub fn create_semaphores(
     return semaphores;
 }
 
-pub fn create_fences(
+pub fn createFences(
     allocator: std.mem.Allocator,
     device: c.VkDevice,
     fence_amount: u32,

@@ -4,7 +4,7 @@ const common = @import("common.zig");
 
 const c = common.c;
 
-pub fn create_graphics_pipeline_layout(device: c.VkDevice) !c.VkPipelineLayout {
+pub fn createGraphicsPipelineLayout(device: c.VkDevice) !c.VkPipelineLayout {
     const pipeline_layout_create_info: c.VkPipelineLayoutCreateInfo = .{
         .sType = c.VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
         .setLayoutCount = 0,
@@ -20,7 +20,7 @@ pub fn create_graphics_pipeline_layout(device: c.VkDevice) !c.VkPipelineLayout {
     return pipeline_layout;
 }
 
-pub fn create_graphics_pipeline(
+pub fn createGraphicsPipeline(
     device: c.VkDevice,
     swap_chain_extent: c.VkExtent2D,
     graphics_pipeline_layout: c.VkPipelineLayout,
@@ -48,8 +48,8 @@ pub fn create_graphics_pipeline(
         shader_stage_create_infos[1] = frag_shader_stage_create_info;
     }
 
-    const binding_description = common.Vertex.get_binding_description();
-    const attribute_descriptions = common.Vertex.get_attribute_descriptions();
+    const binding_description = common.Vertex.getBindingDescription();
+    const attribute_descriptions = common.Vertex.getAttributeDescription();
 
     const vertex_input_state_create_info: c.VkPipelineVertexInputStateCreateInfo = .{
         .sType = c.VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
@@ -170,7 +170,7 @@ pub fn create_graphics_pipeline(
     return graphics_pipeline;
 }
 
-pub fn create_shader_module(
+pub fn createShaderModule(
     device: c.VkDevice,
     shader_code: []u8,
 ) !c.VkShaderModule {
@@ -186,7 +186,7 @@ pub fn create_shader_module(
     return shader_module;
 }
 
-pub fn create_render_pass(
+pub fn createRenderPass(
     device: c.VkDevice,
     swap_chain_image_format: c.VkFormat,
 ) !c.VkRenderPass {

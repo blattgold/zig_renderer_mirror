@@ -3,13 +3,13 @@ const std = @import("std");
 const config = @import("config.zig");
 const logger = @import("logger.zig");
 const common = @import("common.zig");
-const v_layers = @import("v_layers.zig");
+const validation_layers = @import("validation_layers.zig");
 const instance_mod = @import("instance.zig");
 const device_mod = @import("device.zig");
 const pipeline_mod = @import("pipeline.zig");
 const buffer_mod = @import("buffer.zig");
 const sync_mod = @import("sync.zig");
-const swap_chain_mod = @import("swap_chain.zig");
+const swapchain_mod = @import("swapchain.zig");
 
 const c = common.c;
 
@@ -17,8 +17,8 @@ const VulkanError = common.VulkanError;
 const ArrayList = std.ArrayList;
 const QueueFamilyIndices = common.QueueFamilyIndices;
 const WindowFrameBufferSize = common.WindowFrameBufferSize;
-const SwapChainSupportDetails = common.SwapChainSupportDetails;
-const SwapChainState = swap_chain_mod.SwapChainState;
+const SwapChainSupportDetails = common.SwapchainSupportDetails;
+const SwapchainState = swapchain_mod.SwapchainState;
 
 const PhysicalDeviceResult = device_mod.PhysicalDeviceResult;
 
@@ -26,26 +26,26 @@ const allocator = std.heap.page_allocator;
 
 /// IMPORTANT: must call deinit, otherwise leaks memory and doesn't uninit Vulkan
 pub const VkContext = struct {
-    vk_instance: c.VkInstance,
+    instance: c.VkInstance,
     maybe_debug_messenger: c.VkDebugUtilsMessengerEXT,
 
-    get_window_frame_buffer_size_fn: *const fn (context: ?*anyopaque) WindowFrameBufferSize,
-    get_window_frame_buffer_size_context: ?*anyopaque,
+    get_window_fb_size_callback: *const fn (context: ?*anyopaque) WindowFrameBufferSize,
+    get_window_fb_size_context: ?*anyopaque,
 
     queue_family_indices: QueueFamilyIndices,
     graphics_queue: c.VkQueue,
     present_queue: c.VkQueue,
     device: c.VkDevice,
 
-    vk_surface: c.VkSurfaceKHR,
+    surface: c.VkSurfaceKHR,
 
-    swap_chain_state: SwapChainState,
+    swapchain_state: SwapchainState,
 
     graphics_pipeline: c.VkPipeline,
     graphics_pipeline_layout: c.VkPipelineLayout,
     render_pass: c.VkRenderPass,
 
-    swap_chain_frame_buffers: []c.VkFramebuffer,
+    swapchain_framebuffers: []c.VkFramebuffer,
 
     vertex_buffer: c.VkBuffer,
     vertex_buffer_memory: c.VkDeviceMemory,
@@ -57,7 +57,7 @@ pub const VkContext = struct {
     semaphores_render_finished: []c.VkSemaphore,
     fences_in_flight: []c.VkFence,
 
-    frame_buffer_resized: bool,
+    framebuffer_resized: bool,
     current_frame: usize,
 
     pub fn render(self: *@This()) !void {
@@ -69,22 +69,22 @@ pub const VkContext = struct {
         var image_index: u32 = undefined;
         const acquire_next_image_result = c.vkAcquireNextImageKHR(
             self.device,
-            self.swap_chain_state.swap_chain,
+            self.swapchain_state.swapchain,
             std.math.maxInt(u64),
             self.semaphores_image_available[current_frame_modulo_index],
             null,
             @ptrCast(&image_index),
         );
 
-        if (self.frame_buffer_resized) {
-            self.frame_buffer_resized = false;
-            try self.recreate_swap_chain();
+        if (self.framebuffer_resized) {
+            self.framebuffer_resized = false;
+            try self.recreateSwapchain();
         } else {
             switch (acquire_next_image_result) {
                 c.VK_SUCCESS => {},
                 c.VK_ERROR_OUT_OF_DATE_KHR, c.VK_SUBOPTIMAL_KHR => {
-                    self.frame_buffer_resized = false;
-                    try self.recreate_swap_chain();
+                    self.framebuffer_resized = false;
+                    try self.recreateSwapchain();
                 },
                 else => return error.AcquireNextImage,
             }
@@ -96,11 +96,11 @@ pub const VkContext = struct {
         if (c.vkResetCommandBuffer(self.command_buffers[current_frame_modulo_index], 0) != c.VK_SUCCESS)
             return error.ResetCommandBuffer;
 
-        try buffer_mod.record_command_buffer(
+        try buffer_mod.recordCommandBuffer(
             self.render_pass,
             self.command_buffers[current_frame_modulo_index],
-            self.swap_chain_state.extent,
-            self.swap_chain_frame_buffers,
+            self.swapchain_state.extent,
+            self.swapchain_framebuffers,
             image_index,
             self.graphics_pipeline,
             self.vertex_buffer,
@@ -133,7 +133,7 @@ pub const VkContext = struct {
             return error.QueueSubmit;
 
         const swap_chains: [1]c.VkSwapchainKHR = .{
-            self.swap_chain_state.swap_chain,
+            self.swapchain_state.swapchain,
         };
 
         const present_info: c.VkPresentInfoKHR = .{
@@ -155,20 +155,20 @@ pub const VkContext = struct {
         self.current_frame += 1;
     }
 
-    pub fn recreate_swap_chain(self: *@This()) !void {
+    pub fn recreateSwapchain(self: *@This()) !void {
         _ = c.vkDeviceWaitIdle(self.device);
-        const new_window_buffer_size = self.get_window_frame_buffer_size_fn(self.get_window_frame_buffer_size_context);
-        try self.swap_chain_state.recreate(new_window_buffer_size);
+        const new_window_buffer_size = self.get_window_fb_size_callback(self.get_window_fb_size_context);
+        try self.swapchain_state.recreate(new_window_buffer_size);
 
-        for (self.swap_chain_frame_buffers) |buffer| c.vkDestroyFramebuffer(self.device, buffer, null);
-        allocator.free(self.swap_chain_frame_buffers);
+        for (self.swapchain_framebuffers) |buffer| c.vkDestroyFramebuffer(self.device, buffer, null);
+        allocator.free(self.swapchain_framebuffers);
 
-        self.swap_chain_frame_buffers = try buffer_mod.create_framebuffers(
+        self.swapchain_framebuffers = try buffer_mod.createFramebuffers(
             allocator,
             self.device,
             self.render_pass,
-            self.swap_chain_state.image_views,
-            self.swap_chain_state.extent,
+            self.swapchain_state.image_views,
+            self.swapchain_state.extent,
         );
     }
 
@@ -190,20 +190,20 @@ pub const VkContext = struct {
 
         c.vkFreeCommandBuffers(self.device, self.command_pool, config.max_frames_in_flight, &self.command_buffers[0]);
         c.vkDestroyCommandPool(self.device, self.command_pool, null);
-        for (self.swap_chain_frame_buffers) |swap_chain_frame_buffer|
+        for (self.swapchain_framebuffers) |swap_chain_frame_buffer|
             c.vkDestroyFramebuffer(self.device, swap_chain_frame_buffer, null);
 
         c.vkDestroyPipeline(self.device, self.graphics_pipeline, null);
         c.vkDestroyRenderPass(self.device, self.render_pass, null);
         c.vkDestroyPipelineLayout(self.device, self.graphics_pipeline_layout, null);
 
-        self.swap_chain_state.deinit();
+        self.swapchain_state.deinit();
 
-        c.vkDestroySurfaceKHR(self.vk_instance, self.vk_surface, null);
+        c.vkDestroySurfaceKHR(self.instance, self.surface, null);
         c.vkDestroyDevice(self.device, null);
         if (self.maybe_debug_messenger != null)
-            v_layers.destroy_debug_utils_messenger_ext(self.vk_instance, self.maybe_debug_messenger, null);
-        c.vkDestroyInstance(self.vk_instance, null);
+            validation_layers.destroyDebugUtilsMessengerExt(self.instance, self.maybe_debug_messenger, null);
+        c.vkDestroyInstance(self.instance, null);
 
         logger.log(.Debug, "finished unloading VkContext", .{});
     }
@@ -214,10 +214,10 @@ const VkContextBuilder = struct {
     maybe_debug_messenger: c.VkDebugUtilsMessengerEXT,
 
     surface: c.VkSurfaceKHR,
-    get_window_frame_buffer_size_fn: ?*const fn (context: ?*anyopaque) WindowFrameBufferSize,
-    get_window_frame_buffer_size_context: ?*anyopaque,
+    get_window_fb_size_callback: ?*const fn (context: ?*anyopaque) WindowFrameBufferSize,
+    get_window_fb_size_context: ?*anyopaque,
 
-    pub fn set_surface(
+    pub fn setSurface(
         self: *@This(),
         surface: c.VkSurfaceKHR,
     ) *@This() {
@@ -225,23 +225,23 @@ const VkContextBuilder = struct {
         return self;
     }
 
-    pub fn set_get_window_frame_buffer_size_fn(
+    pub fn setGetWindowFbSizeCallback(
         self: *@This(),
         get_window_frame_buffer_size_fn: fn (context: ?*anyopaque) WindowFrameBufferSize,
     ) *@This() {
-        self.get_window_frame_buffer_size_fn = get_window_frame_buffer_size_fn;
+        self.get_window_fb_size_callback = get_window_frame_buffer_size_fn;
         return self;
     }
 
-    pub fn set_get_window_frame_buffer_size_context(
+    pub fn setGetWindowFbSizeContext(
         self: *@This(),
         get_window_frame_buffer_size_context: ?*anyopaque,
     ) *@This() {
-        self.get_window_frame_buffer_size_context = get_window_frame_buffer_size_context;
+        self.get_window_fb_size_context = get_window_frame_buffer_size_context;
         return self;
     }
 
-    pub fn get_instance(
+    pub fn getInstance(
         self: @This(),
     ) c.VkInstance {
         return self.instance;
@@ -251,26 +251,26 @@ const VkContextBuilder = struct {
         self: *@This(),
     ) !VkContext {
         errdefer c.vkDestroyInstance(self.instance, null);
-        errdefer if (config.enable_validation_layers) v_layers.destroy_debug_utils_messenger_ext(self.instance, self.maybe_debug_messenger, null);
+        errdefer if (config.enable_validation_layers) validation_layers.destroyDebugUtilsMessengerExt(self.instance, self.maybe_debug_messenger, null);
 
         try self.validate();
 
         const surface = self.surface;
-        const get_window_frame_buffer_size_fn = self.get_window_frame_buffer_size_fn.?;
-        const get_window_frame_buffer_size_context = self.get_window_frame_buffer_size_context.?;
+        const get_window_frame_buffer_size_fn = self.get_window_fb_size_callback.?;
+        const get_window_frame_buffer_size_context = self.get_window_fb_size_context.?;
 
         var physical_device: c.VkPhysicalDevice = undefined;
         var queue_family_indices: QueueFamilyIndices = undefined;
         {
-            const physical_devices = try device_mod.find_physical_devices(allocator, self.instance);
+            const physical_devices = try device_mod.findPhysicalDevices(allocator, self.instance);
             defer allocator.free(physical_devices);
-            const physical_device_result = try device_mod.select_suitable_physical_device(physical_devices, self.surface);
+            const physical_device_result = try device_mod.selectSuitablePhysicalDevice(physical_devices, self.surface);
 
             physical_device = physical_device_result.physical_device;
             queue_family_indices = physical_device_result.indices;
         }
 
-        const device = try device_mod.create_device(physical_device, queue_family_indices);
+        const device = try device_mod.createDevice(physical_device, queue_family_indices);
         errdefer c.vkDestroyDevice(device, null);
         logger.log(.Debug, "logical device created successfully: 0x{x}", .{@intFromPtr(device)});
 
@@ -283,53 +283,53 @@ const VkContextBuilder = struct {
             logger.log(.Debug, "present queue: 0x{x}", .{@intFromPtr(present_queue)});
         }
 
-        const swap_chain_support_details = try swap_chain_mod.query_swapchain_support_details(
+        const swapchain_support_details = try swapchain_mod.querySwapchainSupportDetails(
             allocator,
             physical_device,
             self.surface,
         );
 
-        var swap_chain_state = try swap_chain_mod.create_swap_chain_state(
+        var swapchain_state = try swapchain_mod.createSwapchainState(
             allocator,
             device,
             surface,
-            swap_chain_support_details.capabilities,
-            swap_chain_mod.select_swap_surface_format(swap_chain_support_details.formats),
-            swap_chain_mod.select_swap_present_mode(swap_chain_support_details.present_modes),
+            swapchain_support_details.capabilities,
+            swapchain_mod.selectSwapSurfaceFormat(swapchain_support_details.formats),
+            swapchain_mod.selectSwapchainPresentMode(swapchain_support_details.present_modes),
             queue_family_indices,
             get_window_frame_buffer_size_fn(get_window_frame_buffer_size_context),
         );
-        errdefer swap_chain_state.deinit();
+        errdefer swapchain_state.deinit();
 
         var render_pass: c.VkRenderPass = undefined;
         {
-            render_pass = try pipeline_mod.create_render_pass(device, swap_chain_state.surface_format.format);
+            render_pass = try pipeline_mod.createRenderPass(device, swapchain_state.surface_format.format);
             logger.log(.Debug, "created render pass successfully", .{});
         }
         errdefer c.vkDestroyRenderPass(device, render_pass, null);
 
         var graphics_pipeline_layout: c.VkPipelineLayout = undefined;
         {
-            graphics_pipeline_layout = try pipeline_mod.create_graphics_pipeline_layout(device);
+            graphics_pipeline_layout = try pipeline_mod.createGraphicsPipelineLayout(device);
             logger.log(.Debug, "created graphics pipeline layout successfully", .{});
         }
         errdefer c.vkDestroyPipelineLayout(device, graphics_pipeline_layout, null);
 
         var graphics_pipeline: c.VkPipeline = undefined;
         {
-            const vert_shader_code = try common.read_file(allocator, "./shaders/vert.spv");
+            const vert_shader_code = try common.readFile(allocator, "./shaders/vert.spv");
             defer allocator.free(vert_shader_code);
-            const vert_shader_module = try pipeline_mod.create_shader_module(device, vert_shader_code);
+            const vert_shader_module = try pipeline_mod.createShaderModule(device, vert_shader_code);
             defer c.vkDestroyShaderModule(device, vert_shader_module, null);
 
-            const frag_shader_code = try common.read_file(allocator, "./shaders/frag.spv");
+            const frag_shader_code = try common.readFile(allocator, "./shaders/frag.spv");
             defer allocator.free(frag_shader_code);
-            const frag_shader_module = try pipeline_mod.create_shader_module(device, frag_shader_code);
+            const frag_shader_module = try pipeline_mod.createShaderModule(device, frag_shader_code);
             defer c.vkDestroyShaderModule(device, frag_shader_module, null);
 
-            graphics_pipeline = try pipeline_mod.create_graphics_pipeline(
+            graphics_pipeline = try pipeline_mod.createGraphicsPipeline(
                 device,
-                swap_chain_state.extent,
+                swapchain_state.extent,
                 graphics_pipeline_layout,
                 render_pass,
                 vert_shader_module,
@@ -339,18 +339,18 @@ const VkContextBuilder = struct {
         }
         errdefer c.vkDestroyPipeline(device, graphics_pipeline, null);
 
-        const swap_chain_frame_buffers = try buffer_mod.create_framebuffers(
+        const swapchain_framebuffers = try buffer_mod.createFramebuffers(
             allocator,
             device,
             render_pass,
-            swap_chain_state.image_views,
-            swap_chain_state.extent,
+            swapchain_state.image_views,
+            swapchain_state.extent,
         );
-        errdefer for (swap_chain_frame_buffers) |swap_chain_frame_buffer| c.vkDestroyFramebuffer(device, swap_chain_frame_buffer, null);
+        errdefer for (swapchain_framebuffers) |swap_chain_frame_buffer| c.vkDestroyFramebuffer(device, swap_chain_frame_buffer, null);
 
         var command_pool: c.VkCommandPool = undefined;
         {
-            command_pool = try buffer_mod.create_command_pool(device, queue_family_indices);
+            command_pool = try buffer_mod.createCommandPool(device, queue_family_indices);
             logger.log(.Debug, "created command pool successfully", .{});
         }
         errdefer c.vkDestroyCommandPool(device, command_pool, null);
@@ -358,7 +358,7 @@ const VkContextBuilder = struct {
         var vertex_buffer: c.VkBuffer = undefined;
         var vertex_buffer_memory: c.VkDeviceMemory = undefined;
         {
-            vertex_buffer = try buffer_mod.create_vertex_buffer(device);
+            vertex_buffer = try buffer_mod.createVertexBuffer(device);
             errdefer c.vkDestroyBuffer(device, vertex_buffer, null);
 
             var vertex_buffer_memory_requirements: c.VkMemoryRequirements = undefined;
@@ -375,12 +375,12 @@ const VkContextBuilder = struct {
                 },
             );
 
-            const memory_type_index = try device_mod.select_suitable_memory_type_index(
+            const memory_type_index = try device_mod.selectSuitableMemoryTypeIndex(
                 physical_device,
                 vertex_buffer_memory_requirements.memoryTypeBits,
                 c.VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | c.VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
             );
-            vertex_buffer_memory = try buffer_mod.alloc_vertex_buffer_memory(
+            vertex_buffer_memory = try buffer_mod.allocVertexBufferMemory(
                 device,
                 vertex_buffer_memory_requirements,
                 memory_type_index,
@@ -403,24 +403,24 @@ const VkContextBuilder = struct {
 
         var command_buffers: []c.VkCommandBuffer = undefined;
         {
-            command_buffers = try buffer_mod.create_command_buffers(allocator, device, command_pool, config.max_frames_in_flight);
+            command_buffers = try buffer_mod.createCommandBuffers(allocator, device, command_pool, config.max_frames_in_flight);
             logger.log(.Debug, "created command buffers(amount: {d}) successfully", .{config.max_frames_in_flight});
         }
         errdefer c.vkFreeCommandBuffers(device, command_pool, config.max_frames_in_flight, &command_buffers[0]);
 
-        const semaphores_image_available: []c.VkSemaphore = try sync_mod.create_semaphores(
+        const semaphores_image_available: []c.VkSemaphore = try sync_mod.createSemaphores(
             allocator,
             device,
             config.max_frames_in_flight,
         );
         errdefer for (semaphores_image_available) |semaphore| c.vkDestroySemaphore(device, semaphore, null);
-        const semaphores_render_finished: []c.VkSemaphore = try sync_mod.create_semaphores(
+        const semaphores_render_finished: []c.VkSemaphore = try sync_mod.createSemaphores(
             allocator,
             device,
             config.max_frames_in_flight,
         );
         errdefer for (semaphores_render_finished) |semaphore| c.vkDestroySemaphore(device, semaphore, null);
-        const fences_in_flight: []c.VkFence = try sync_mod.create_fences(
+        const fences_in_flight: []c.VkFence = try sync_mod.createFences(
             allocator,
             device,
             config.max_frames_in_flight,
@@ -432,26 +432,26 @@ const VkContextBuilder = struct {
         logger.log(.Debug, "VkContext created successfully", .{});
 
         return VkContext{
-            .vk_instance = self.instance,
+            .instance = self.instance,
             .maybe_debug_messenger = self.maybe_debug_messenger,
 
-            .get_window_frame_buffer_size_fn = get_window_frame_buffer_size_fn,
-            .get_window_frame_buffer_size_context = get_window_frame_buffer_size_context,
+            .get_window_fb_size_callback = get_window_frame_buffer_size_fn,
+            .get_window_fb_size_context = get_window_frame_buffer_size_context,
 
             .queue_family_indices = queue_family_indices,
             .graphics_queue = graphics_queue,
             .present_queue = present_queue,
             .device = device,
 
-            .vk_surface = self.surface,
+            .surface = self.surface,
 
-            .swap_chain_state = swap_chain_state,
+            .swapchain_state = swapchain_state,
 
             .graphics_pipeline = graphics_pipeline,
             .graphics_pipeline_layout = graphics_pipeline_layout,
             .render_pass = render_pass,
 
-            .swap_chain_frame_buffers = swap_chain_frame_buffers,
+            .swapchain_framebuffers = swapchain_framebuffers,
 
             .vertex_buffer = vertex_buffer,
             .vertex_buffer_memory = vertex_buffer_memory,
@@ -464,7 +464,7 @@ const VkContextBuilder = struct {
             .fences_in_flight = fences_in_flight,
 
             .current_frame = 0,
-            .frame_buffer_resized = false,
+            .framebuffer_resized = false,
         };
     }
 
@@ -472,15 +472,15 @@ const VkContextBuilder = struct {
         self: *@This(),
     ) !void {
         std.debug.assert(self.instance != null);
-        std.debug.assert(self.get_window_frame_buffer_size_fn != null);
-        std.debug.assert(self.get_window_frame_buffer_size_context != null);
+        std.debug.assert(self.get_window_fb_size_callback != null);
+        std.debug.assert(self.get_window_fb_size_context != null);
     }
 };
 
-pub fn create_vk_context_builder(
+pub fn createVkContextBuilder(
     required_extensions: []const [*c]const u8,
 ) !VkContextBuilder {
-    var vk_instance: c.VkInstance = undefined;
+    var instance: c.VkInstance = undefined;
     {
         var total_required_extensions: [][*c]const u8 = undefined;
         {
@@ -508,30 +508,30 @@ pub fn create_vk_context_builder(
         }
         defer allocator.free(total_required_extensions);
 
-        vk_instance = try instance_mod.create_instance(total_required_extensions);
+        instance = try instance_mod.createInstance(total_required_extensions);
 
         logger.log(.Debug, "required extensions: {any}", .{required_extensions});
-        logger.log(.Debug, "Instance created successfully: 0x{x}", .{@intFromPtr(vk_instance)});
+        logger.log(.Debug, "Instance created successfully: 0x{x}", .{@intFromPtr(instance)});
         if (config.enable_validation_layers)
             logger.log(.Debug, "enabled validation layers: {any}", .{config.validation_layers});
     }
-    errdefer c.vkDestroyInstance(vk_instance, null);
+    errdefer c.vkDestroyInstance(instance, null);
 
     const maybe_debug_messenger =
         if (config.enable_validation_layers)
-            try v_layers.create_debug_messenger(vk_instance)
+            try validation_layers.createDebugMessenger(instance)
         else
             null;
-    errdefer if (config.enable_validation_layers) v_layers.destroy_debug_utils_messenger_ext(vk_instance, maybe_debug_messenger, null);
+    errdefer if (config.enable_validation_layers) validation_layers.destroyDebugUtilsMessengerExt(instance, maybe_debug_messenger, null);
 
     logger.log(.Debug, "VkContextIncompleteInit created successfully", .{});
 
     return .{
-        .instance = vk_instance,
+        .instance = instance,
         .maybe_debug_messenger = maybe_debug_messenger,
 
         .surface = null,
-        .get_window_frame_buffer_size_fn = null,
-        .get_window_frame_buffer_size_context = null,
+        .get_window_fb_size_callback = null,
+        .get_window_fb_size_context = null,
     };
 }

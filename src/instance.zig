@@ -1,14 +1,14 @@
 const common = @import("common.zig");
 const config = @import("config.zig");
-const v_layers = @import("v_layers.zig");
+const validation_layers = @import("validation_layers.zig");
 
 const c = common.c;
 
 const VulkanError = common.VulkanError;
 
-pub fn create_instance(extensions: [][*c]const u8) !c.VkInstance {
+pub fn createInstance(extensions: [][*c]const u8) !c.VkInstance {
     if (config.enable_validation_layers)
-        try v_layers.check_validation_layer_support();
+        try validation_layers.checkValidationLayerSupport();
 
     var app_info: c.VkApplicationInfo = .{
         .sType = c.VK_STRUCTURE_TYPE_APPLICATION_INFO,
@@ -31,7 +31,7 @@ pub fn create_instance(extensions: [][*c]const u8) !c.VkInstance {
         inst_info.enabledLayerCount = config.validation_layers.len;
         inst_info.ppEnabledLayerNames = @ptrCast(config.validation_layers.ptr);
 
-        debug_create_info = v_layers.create_debug_utils_messenger_create_info_ext();
+        debug_create_info = validation_layers.createDebugUtilsMessengerCreateInfoExt();
         inst_info.pNext = @ptrCast(&debug_create_info);
     } else {
         inst_info.enabledLayerCount = 0;

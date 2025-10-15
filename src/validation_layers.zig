@@ -7,7 +7,7 @@ const c = common.c;
 
 const VulkanError = common.VulkanError;
 
-pub fn check_validation_layer_support() !void {
+pub fn checkValidationLayerSupport() !void {
     const allocator = std.heap.page_allocator;
 
     var layer_count: u32 = undefined;
@@ -49,43 +49,43 @@ pub fn check_validation_layer_support() !void {
     }
 }
 
-fn debug_callback(
+fn debugCallback(
     _: c.VkDebugUtilsMessageSeverityFlagBitsEXT,
     _: c.VkDebugUtilsMessageTypeFlagsEXT,
-    p_callback_data: [*c]const c.VkDebugUtilsMessengerCallbackDataEXT,
+    callback_data: [*c]const c.VkDebugUtilsMessengerCallbackDataEXT,
     _: ?*anyopaque,
 ) callconv(.c) c.VkBool32 {
-    std.debug.print("[VULKAN]: {s}\n", .{p_callback_data.*.pMessage});
+    std.debug.print("[VULKAN]: {s}\n", .{callback_data.*.pMessage});
 
     return c.VK_FALSE;
 }
 
-fn create_debug_utils_messenger_ext(
+fn createDebugUtilsMessengerExt(
     instance: c.VkInstance,
-    p_create_info: *c.VkDebugUtilsMessengerCreateInfoEXT,
-    p_allocator: ?*c.VkAllocationCallbacks,
-    p_debug_messenger: *c.VkDebugUtilsMessengerEXT,
+    create_info: *c.VkDebugUtilsMessengerCreateInfoEXT,
+    vk_allocator: ?*c.VkAllocationCallbacks,
+    debug_messenger: *c.VkDebugUtilsMessengerEXT,
 ) c.VkResult {
     const func: c.PFN_vkCreateDebugUtilsMessengerEXT = @ptrCast(c.vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT"));
     if (func != null) {
-        return func.?(instance, p_create_info, p_allocator, p_debug_messenger);
+        return func.?(instance, create_info, vk_allocator, debug_messenger);
     } else {
         return c.VK_ERROR_EXTENSION_NOT_PRESENT;
     }
 }
 
-pub fn destroy_debug_utils_messenger_ext(
+pub fn destroyDebugUtilsMessengerExt(
     instance: c.VkInstance,
     debug_messenger: c.VkDebugUtilsMessengerEXT,
-    p_allocator: ?*c.VkAllocationCallbacks,
+    vk_allocator: ?*c.VkAllocationCallbacks,
 ) void {
     const func: c.PFN_vkDestroyDebugUtilsMessengerEXT = @ptrCast(c.vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT"));
     if (func != null) {
-        func.?(instance, debug_messenger, p_allocator);
+        func.?(instance, debug_messenger, vk_allocator);
     }
 }
 
-pub fn create_debug_utils_messenger_create_info_ext() c.VkDebugUtilsMessengerCreateInfoEXT {
+pub fn createDebugUtilsMessengerCreateInfoExt() c.VkDebugUtilsMessengerCreateInfoEXT {
     return c.VkDebugUtilsMessengerCreateInfoEXT{
         .flags = 0,
         .sType = c.VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
@@ -95,15 +95,15 @@ pub fn create_debug_utils_messenger_create_info_ext() c.VkDebugUtilsMessengerCre
         .messageType = c.VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
             c.VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
             c.VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT,
-        .pfnUserCallback = debug_callback,
+        .pfnUserCallback = debugCallback,
         .pUserData = null, // custom user data pointer
     };
 }
 
-pub fn create_debug_messenger(instance: c.VkInstance) !c.VkDebugUtilsMessengerEXT {
-    var info = create_debug_utils_messenger_create_info_ext();
+pub fn createDebugMessenger(instance: c.VkInstance) !c.VkDebugUtilsMessengerEXT {
+    var info = createDebugUtilsMessengerCreateInfoExt();
     var debug_messenger: c.VkDebugUtilsMessengerEXT = null;
-    if (create_debug_utils_messenger_ext(instance, &info, null, &debug_messenger) != c.VK_SUCCESS)
+    if (createDebugUtilsMessengerExt(instance, &info, null, &debug_messenger) != c.VK_SUCCESS)
         return VulkanError.SetupDebugMessengerFailure;
 
     return debug_messenger;

@@ -6,12 +6,12 @@ const buffer_mod = @import("buffer.zig");
 
 const c = common.c;
 
-const SwapChainSupportDetails = common.SwapChainSupportDetails;
+const SwapChainSupportDetails = common.SwapchainSupportDetails;
 const WindowFrameBufferSize = common.WindowFrameBufferSize;
 const QueueFamilyIndices = common.QueueFamilyIndices;
 const VulkanError = common.VulkanError;
 
-pub const SwapChainState = struct {
+pub const SwapchainState = struct {
     // persistent data
     allocator: std.mem.Allocator,
     surface: c.VkSurfaceKHR,
@@ -19,7 +19,7 @@ pub const SwapChainState = struct {
     queue_family_indices: QueueFamilyIndices,
 
     // variable data
-    swap_chain: c.VkSwapchainKHR,
+    swapchain: c.VkSwapchainKHR,
     images: []c.VkImage,
     image_views: []c.VkImageView,
 
@@ -36,7 +36,7 @@ pub const SwapChainState = struct {
         window_frame_buffer_size: WindowFrameBufferSize,
     ) !void {
         self.deinit();
-        try populate_swap_chain_common_helper(self, window_frame_buffer_size);
+        try populateSwapchainCommonHelper(self, window_frame_buffer_size);
     }
 
     /// vkDestroy and freeing of slices
@@ -44,7 +44,7 @@ pub const SwapChainState = struct {
         self: *@This(),
     ) void {
         logger.log(.Debug, "destroying swap_chain_state members...", .{});
-        self.destroy_all();
+        self.destroyAll();
 
         logger.log(.Debug, "freeing image_views...", .{});
         self.allocator.free(self.image_views);
@@ -52,13 +52,13 @@ pub const SwapChainState = struct {
         self.allocator.free(self.images);
     }
 
-    fn destroy_all(
+    fn destroyAll(
         self: *@This(),
     ) void {
         for (self.image_views) |image_view|
             c.vkDestroyImageView(self.device, image_view, null);
 
-        c.vkDestroySwapchainKHR(self.device, self.swap_chain, null);
+        c.vkDestroySwapchainKHR(self.device, self.swapchain, null);
     }
 };
 
@@ -66,57 +66,57 @@ pub const SwapChainState = struct {
 ///
 /// fills out images, image_views, swap_chain and extent.
 /// The rest of the fields need to be initialized before being passed to this function.
-fn populate_swap_chain_common_helper(
-    swap_chain_state_ptr: *SwapChainState,
+fn populateSwapchainCommonHelper(
+    swapchain_state_ptr: *SwapchainState,
     window_frame_buffer_size: WindowFrameBufferSize,
 ) !void {
-    const allocator = swap_chain_state_ptr.*.allocator;
-    const device = swap_chain_state_ptr.*.device;
-    const surface = swap_chain_state_ptr.*.surface;
-    const queue_family_indices = swap_chain_state_ptr.*.queue_family_indices;
+    const allocator = swapchain_state_ptr.*.allocator;
+    const device = swapchain_state_ptr.*.device;
+    const surface = swapchain_state_ptr.*.surface;
+    const queue_family_indices = swapchain_state_ptr.*.queue_family_indices;
 
-    const surface_format = swap_chain_state_ptr.*.surface_format;
-    const surface_present_mode = swap_chain_state_ptr.*.present_mode;
-    const surface_capabilities = swap_chain_state_ptr.*.surface_capabilities;
+    const surface_format = swapchain_state_ptr.*.surface_format;
+    const surface_present_mode = swapchain_state_ptr.*.present_mode;
+    const surface_capabilities = swapchain_state_ptr.*.surface_capabilities;
 
-    const surface_extent = select_swap_extent(
+    const extent = selectSwapchainExtent(
         surface_capabilities,
         window_frame_buffer_size,
     );
 
-    const swap_chain = try create_swap_chain(
+    const swapchain = try createSwapchain(
         device,
         surface,
         surface_capabilities,
         surface_format,
         surface_present_mode,
-        surface_extent,
+        extent,
         queue_family_indices,
     );
 
-    const swap_chain_images = try get_swap_chain_images(
-        swap_chain_state_ptr.allocator,
+    const images = try getSwapchainImages(
+        swapchain_state_ptr.allocator,
         device,
-        swap_chain,
+        swapchain,
     );
-    errdefer allocator.free(swap_chain_images);
+    errdefer allocator.free(images);
 
-    const swap_chain_image_views = try create_image_views(
+    const image_views = try createImageViews(
         allocator,
         device,
-        swap_chain_images,
+        images,
         surface_format.format,
     );
-    errdefer allocator.free(swap_chain_image_views);
-    errdefer for (swap_chain_image_views) |view| c.vkDestroyImageView(device, view, null);
+    errdefer allocator.free(image_views);
+    errdefer for (image_views) |view| c.vkDestroyImageView(device, view, null);
 
-    swap_chain_state_ptr.swap_chain = swap_chain;
-    swap_chain_state_ptr.images = swap_chain_images;
-    swap_chain_state_ptr.image_views = swap_chain_image_views;
-    swap_chain_state_ptr.extent = surface_extent;
+    swapchain_state_ptr.swapchain = swapchain;
+    swapchain_state_ptr.images = images;
+    swapchain_state_ptr.image_views = image_views;
+    swapchain_state_ptr.extent = extent;
 }
 
-pub fn create_swap_chain_state(
+pub fn createSwapchainState(
     allocator: std.mem.Allocator,
     device: c.VkDevice,
     surface: c.VkSurfaceKHR,
@@ -125,82 +125,70 @@ pub fn create_swap_chain_state(
     surface_present_mode: c.VkPresentModeKHR,
     queue_family_indices: QueueFamilyIndices,
     window_frame_bufer_size: WindowFrameBufferSize,
-) !SwapChainState {
-    var swap_chain_state: SwapChainState = undefined;
-    swap_chain_state.allocator = allocator;
-    swap_chain_state.device = device;
-    swap_chain_state.present_mode = surface_present_mode;
-    swap_chain_state.queue_family_indices = queue_family_indices;
-    swap_chain_state.surface = surface;
-    swap_chain_state.surface_capabilities = surface_capabilities;
-    swap_chain_state.surface_format = surface_format;
+) !SwapchainState {
+    var swapchain_state: SwapchainState = undefined;
+    swapchain_state.allocator = allocator;
+    swapchain_state.device = device;
+    swapchain_state.present_mode = surface_present_mode;
+    swapchain_state.queue_family_indices = queue_family_indices;
+    swapchain_state.surface = surface;
+    swapchain_state.surface_capabilities = surface_capabilities;
+    swapchain_state.surface_format = surface_format;
 
-    try populate_swap_chain_common_helper(
-        &swap_chain_state,
+    try populateSwapchainCommonHelper(
+        &swapchain_state,
         window_frame_bufer_size,
     );
 
-    return swap_chain_state;
+    return swapchain_state;
 }
 
-fn get_swap_chain_images(
+fn getSwapchainImages(
     allocator: std.mem.Allocator,
     device: c.VkDevice,
-    swap_chain: c.VkSwapchainKHR,
+    swapchain: c.VkSwapchainKHR,
 ) ![]c.VkImage {
     var swap_chain_images: []c.VkImage = undefined;
     {
         var image_count: u32 = undefined;
-        if (c.vkGetSwapchainImagesKHR(device, swap_chain, &image_count, null) != c.VK_SUCCESS)
+        if (c.vkGetSwapchainImagesKHR(device, swapchain, &image_count, null) != c.VK_SUCCESS)
             return VulkanError.SwapChainGetImagesFailure;
 
         swap_chain_images = try allocator.alloc(c.VkImage, image_count);
         errdefer allocator.free(swap_chain_images);
-        if (c.vkGetSwapchainImagesKHR(device, swap_chain, &image_count, swap_chain_images.ptr) != c.VK_SUCCESS)
+        if (c.vkGetSwapchainImagesKHR(device, swapchain, &image_count, swap_chain_images.ptr) != c.VK_SUCCESS)
             return VulkanError.SwapChainGetImagesFailure;
     }
     return swap_chain_images;
 }
-
-const QuerySwapChainError = error{
-    GetCapabilities,
-
-    GetFormatCount,
-    FormatCountZero,
-    GetFormats,
-
-    GetPresentModeCount,
-    PresentModeCountZero,
-    GetPresentModes,
-};
 
 /// alloctes memory, details has to be manually deallocated after use.
 ///
 /// returns an error if:
 /// - vulkan function call fails
 /// - format_count or present_mode_count is less than 1
-pub fn query_swapchain_support_details(
+pub fn querySwapchainSupportDetails(
     allocator: std.mem.Allocator,
     physical_device: c.VkPhysicalDevice,
     vk_surface: c.VkSurfaceKHR,
 ) !SwapChainSupportDetails {
     var surface_capabilities: c.VkSurfaceCapabilitiesKHR = undefined;
     if (c.vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical_device, vk_surface, @ptrCast(&surface_capabilities)) != c.VK_SUCCESS)
-        return QuerySwapChainError.GetCapabilities;
+        return error.GetCapabilities;
 
     var surface_formats: []c.VkSurfaceFormatKHR = undefined;
     {
         var format_count: u32 = undefined;
         if (c.vkGetPhysicalDeviceSurfaceFormatsKHR(physical_device, vk_surface, &format_count, null) != c.VK_SUCCESS)
-            return QuerySwapChainError.GetFormatCount;
+            return error.GetFormatCount;
 
         if (format_count == 0)
-            return QuerySwapChainError.FormatCountZero;
+            return error.FormatCountZero;
 
         surface_formats = try allocator.alloc(c.VkSurfaceFormatKHR, format_count);
         errdefer allocator.free(surface_formats);
         if (c.vkGetPhysicalDeviceSurfaceFormatsKHR(physical_device, vk_surface, &format_count, surface_formats.ptr) != c.VK_SUCCESS)
-            return QuerySwapChainError.GetFormats;
+            return error.GetFormats;
     }
     errdefer allocator.free(surface_formats);
 
@@ -208,15 +196,15 @@ pub fn query_swapchain_support_details(
     {
         var present_mode_count: u32 = undefined;
         if (c.vkGetPhysicalDeviceSurfacePresentModesKHR(physical_device, vk_surface, &present_mode_count, null) != c.VK_SUCCESS)
-            return QuerySwapChainError.GetPresentModeCount;
+            return error.GetPresentModeCount;
 
         if (present_mode_count == 0)
-            return QuerySwapChainError.PresentModeCountZero;
+            return error.PresentModeCountZero;
 
         present_modes = try allocator.alloc(c.VkPresentModeKHR, present_mode_count);
         errdefer allocator.free(present_modes);
         if (c.vkGetPhysicalDeviceSurfacePresentModesKHR(physical_device, vk_surface, &present_mode_count, present_modes.ptr) != c.VK_SUCCESS)
-            return QuerySwapChainError.GetPresentModes;
+            return error.GetPresentModes;
     }
 
     return .{
@@ -227,7 +215,7 @@ pub fn query_swapchain_support_details(
 }
 
 /// if preferred format is unavailable, picks the first one.
-pub fn select_swap_surface_format(available_formats: []c.VkSurfaceFormatKHR) c.VkSurfaceFormatKHR {
+pub fn selectSwapSurfaceFormat(available_formats: []c.VkSurfaceFormatKHR) c.VkSurfaceFormatKHR {
     std.debug.assert(available_formats.len != 0);
 
     for (available_formats) |available_format| {
@@ -240,7 +228,7 @@ pub fn select_swap_surface_format(available_formats: []c.VkSurfaceFormatKHR) c.V
 }
 
 /// if preferred present mode is unavailable, picks c.VK_PRESENT_MODE_FIFO_KHR (guaranteed to be supported).
-pub fn select_swap_present_mode(available_present_modes: []c.VkPresentModeKHR) c.VkPresentModeKHR {
+pub fn selectSwapchainPresentMode(available_present_modes: []c.VkPresentModeKHR) c.VkPresentModeKHR {
     for (available_present_modes) |available_present_mode| {
         if (available_present_mode == c.VK_PRESENT_MODE_MAILBOX_KHR) {
             return available_present_mode;
@@ -250,7 +238,7 @@ pub fn select_swap_present_mode(available_present_modes: []c.VkPresentModeKHR) c
     return c.VK_PRESENT_MODE_FIFO_KHR;
 }
 
-pub fn select_swap_extent(
+pub fn selectSwapchainExtent(
     capabilites: c.VkSurfaceCapabilitiesKHR,
     window_frame_buffer_size: WindowFrameBufferSize,
 ) c.VkExtent2D {
@@ -261,7 +249,6 @@ pub fn select_swap_extent(
             .height = window_frame_buffer_size.h,
             .width = window_frame_buffer_size.w,
         };
-
         actual_extent.width = std.math.clamp(
             actual_extent.width,
             capabilites.minImageExtent.width,
@@ -277,7 +264,7 @@ pub fn select_swap_extent(
     }
 }
 
-pub fn create_swap_chain(
+pub fn createSwapchain(
     device: c.VkDevice,
     vk_surface: c.VkSurfaceKHR,
     surface_capabilities: c.VkSurfaceCapabilitiesKHR,
@@ -300,7 +287,7 @@ pub fn create_swap_chain(
         queue_family_indices.present_family,
     };
 
-    var swap_chain_create_info: c.VkSwapchainCreateInfoKHR = .{
+    var swapchain_info: c.VkSwapchainCreateInfoKHR = .{
         .sType = c.VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
         .surface = vk_surface,
 
@@ -320,38 +307,38 @@ pub fn create_swap_chain(
 
     if (queue_family_indices.graphics_family != queue_family_indices.present_family) {
         logger.log(.Debug, "swap chain mode: VK_SHARING_MODE_CONCURRENT", .{});
-        swap_chain_create_info.imageSharingMode = c.VK_SHARING_MODE_CONCURRENT;
-        swap_chain_create_info.queueFamilyIndexCount = @intCast(indices.len);
-        swap_chain_create_info.pQueueFamilyIndices = @ptrCast(indices[0..]);
+        swapchain_info.imageSharingMode = c.VK_SHARING_MODE_CONCURRENT;
+        swapchain_info.queueFamilyIndexCount = @intCast(indices.len);
+        swapchain_info.pQueueFamilyIndices = @ptrCast(indices[0..]);
     } else {
         logger.log(.Debug, "swap chain mode: VK_SHARING_MODE_EXCLUSIVE", .{});
-        swap_chain_create_info.imageSharingMode = c.VK_SHARING_MODE_EXCLUSIVE;
+        swapchain_info.imageSharingMode = c.VK_SHARING_MODE_EXCLUSIVE;
     }
 
-    var swap_chain: c.VkSwapchainKHR = undefined;
-    if (c.vkCreateSwapchainKHR(device, &swap_chain_create_info, null, &swap_chain) != c.VK_SUCCESS)
+    var swapchain: c.VkSwapchainKHR = undefined;
+    if (c.vkCreateSwapchainKHR(device, &swapchain_info, null, &swapchain) != c.VK_SUCCESS)
         return VulkanError.SwapChainCreateFailure;
 
     logger.log(.Debug, "successfully created swap chain", .{});
 
-    return swap_chain;
+    return swapchain;
 }
 
-pub fn create_image_views(
+pub fn createImageViews(
     allocator: std.mem.Allocator,
     device: c.VkDevice,
-    swap_chain_images: []c.VkImage,
-    swap_chain_image_format: c.VkFormat,
+    swapchain_images: []c.VkImage,
+    swapchain_image_format: c.VkFormat,
 ) ![]c.VkImageView {
-    var swap_chain_image_views: []c.VkImageView = try allocator.alloc(c.VkImageView, swap_chain_images.len);
-    errdefer allocator.free(swap_chain_image_views);
+    var swapchain_image_views: []c.VkImageView = try allocator.alloc(c.VkImageView, swapchain_images.len);
+    errdefer allocator.free(swapchain_image_views);
     // create info for each image
-    for (swap_chain_images, 0..) |swap_chain_image, i| {
-        var image_view_create_info: c.VkImageViewCreateInfo = .{
+    for (swapchain_images, 0..) |swap_chain_image, i| {
+        var image_view_info: c.VkImageViewCreateInfo = .{
             .sType = c.VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
             .image = swap_chain_image,
             .viewType = c.VK_IMAGE_VIEW_TYPE_2D,
-            .format = swap_chain_image_format,
+            .format = swapchain_image_format,
 
             // Swizzling allows you to map a color channel to a different one, or setting it to a constant value.
             .components = .{
@@ -371,9 +358,9 @@ pub fn create_image_views(
             },
         };
 
-        if (c.vkCreateImageView(device, &image_view_create_info, null, &swap_chain_image_views[i]) != c.VK_SUCCESS)
+        if (c.vkCreateImageView(device, &image_view_info, null, &swapchain_image_views[i]) != c.VK_SUCCESS)
             return VulkanError.ImageViewCreateError;
     }
 
-    return swap_chain_image_views;
+    return swapchain_image_views;
 }

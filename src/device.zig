@@ -3,7 +3,7 @@ const std = @import("std");
 const common = @import("common.zig");
 const logger = @import("logger.zig");
 const config = @import("config.zig");
-const swap_chain_mod = @import("swap_chain.zig");
+const swapchain_mod = @import("swapchain.zig");
 
 const c = common.c;
 
@@ -11,7 +11,7 @@ const ArrayList = std.ArrayList;
 const VulkanError = common.VulkanError;
 const QueueFamilyIndices = common.QueueFamilyIndices;
 const QueueFamilyIndicesOpt = common.QueueFamilyIndicesOpt;
-const SwapChainSupportDetails = common.SwapChainSupportDetails;
+const SwapChainSupportDetails = common.SwapchainSupportDetails;
 const WindowFrameBufferSize = common.WindowFrameBufferSize;
 
 pub const PhysicalDeviceResult = struct {
@@ -19,9 +19,8 @@ pub const PhysicalDeviceResult = struct {
     physical_device: c.VkPhysicalDevice,
 };
 
-/// returns a list with all available physical devices.
 /// physical_device list must be manually freed.
-pub fn find_physical_devices(
+pub fn findPhysicalDevices(
     allocator: std.mem.Allocator,
     vk_instance: c.VkInstance,
 ) ![]c.VkPhysicalDevice {
@@ -51,9 +50,7 @@ pub fn find_physical_devices(
 /// - at least one queue_family exists that has all the necessary capabilites.
 /// - it supports all the required device extensions defined in config.device_extensions
 /// - querying swapchain details succeeds (vk function calls succeed and neither formats nor present modes are empty)
-///
-/// return value is a struct that contains QueueFamilyIndices + the PhysicalDevice.
-pub fn select_suitable_physical_device(
+pub fn selectSuitablePhysicalDevice(
     physical_devices: []c.VkPhysicalDevice,
     vk_surface: c.VkSurfaceKHR,
 ) !PhysicalDeviceResult {
@@ -63,9 +60,9 @@ pub fn select_suitable_physical_device(
     var selected_indices: ?QueueFamilyIndices = null;
 
     for (physical_devices) |physical_device| {
-        const queue_families = try find_queue_families(allocator, physical_device);
+        const queue_families = try findQueueFamilies(allocator, physical_device);
         defer allocator.free(queue_families);
-        const indices = select_queue_family_indices(
+        const indices = selectQueueFamilyIndices(
             physical_device,
             queue_families,
             vk_surface,
@@ -73,8 +70,8 @@ pub fn select_suitable_physical_device(
 
         const physical_device_suitable =
             indices != null and
-            try supports_required_extensions(physical_device) and
-            swap_chain_suitable(allocator, physical_device, vk_surface);
+            try supportsRequiredExtensions(physical_device) and
+            swapchainSuitable(allocator, physical_device, vk_surface);
 
         if (physical_device_suitable) {
             selected_physical_device = physical_device;
@@ -93,19 +90,19 @@ pub fn select_suitable_physical_device(
 }
 
 /// helper for select_suitable_physical_device
-fn swap_chain_suitable(
+fn swapchainSuitable(
     allocator: std.mem.Allocator,
     physical_device: c.VkPhysicalDevice,
     vk_surface: c.VkSurfaceKHR,
 ) bool {
-    const details = swap_chain_mod.query_swapchain_support_details(allocator, physical_device, vk_surface) catch return false;
+    const details = swapchain_mod.querySwapchainSupportDetails(allocator, physical_device, vk_surface) catch return false;
     details.deinit(allocator);
     return true;
 }
 
 /// helper for select_suitable_physical_device
 /// returns true if all the required extensions are supported
-fn supports_required_extensions(physical_device: c.VkPhysicalDevice) !bool {
+fn supportsRequiredExtensions(physical_device: c.VkPhysicalDevice) !bool {
     const allocator = std.heap.page_allocator;
 
     var extension_count: u32 = undefined;
@@ -141,7 +138,7 @@ fn supports_required_extensions(physical_device: c.VkPhysicalDevice) !bool {
     return true;
 }
 
-pub fn find_queue_families(
+pub fn findQueueFamilies(
     allocator: std.mem.Allocator,
     physical_device: c.VkPhysicalDevice,
 ) ![]c.VkQueueFamilyProperties {
@@ -161,7 +158,7 @@ pub fn find_queue_families(
     return queue_families;
 }
 
-pub fn select_queue_family_indices(
+pub fn selectQueueFamilyIndices(
     physical_device: c.VkPhysicalDevice,
     queue_families: []c.VkQueueFamilyProperties,
     vk_surface: c.VkSurfaceKHR,
@@ -169,10 +166,6 @@ pub fn select_queue_family_indices(
     var indices_opt: QueueFamilyIndicesOpt = .{ .graphics_family = null, .present_family = null };
 
     for (queue_families, 0..) |queue_family, i| {
-        // sanity check, no device will ever have this many queue families.
-        // if it does, something really weird occured.
-        std.debug.assert(i < std.math.maxInt(u32));
-
         var present_support: c.VkBool32 = undefined;
         _ = c.vkGetPhysicalDeviceSurfaceSupportKHR(physical_device, @intCast(i), vk_surface, &present_support);
 
@@ -184,22 +177,21 @@ pub fn select_queue_family_indices(
             indices_opt.present_family = @intCast(i);
         }
 
-        if (indices_opt.is_complete()) {
+        if (indices_opt.isComplete()) {
             break;
         }
     }
 
-    return indices_opt.to_queue_family_indices();
+    return indices_opt.toQueueFamilyIndices();
 }
 
-pub fn create_device(physical_device: c.VkPhysicalDevice, indices: QueueFamilyIndices) !c.VkDevice {
+pub fn createDevice(physical_device: c.VkPhysicalDevice, indices: QueueFamilyIndices) !c.VkDevice {
     const allocator = std.heap.page_allocator;
 
     var queue_create_infos: ArrayList(c.VkDeviceQueueCreateInfo) = .{};
     defer queue_create_infos.clearAndFree(allocator);
     var queue_priority: f32 = 1.0;
 
-    // graphics family
     {
         const queue_create_info: c.VkDeviceQueueCreateInfo = .{
             .sType = c.VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
@@ -210,7 +202,6 @@ pub fn create_device(physical_device: c.VkPhysicalDevice, indices: QueueFamilyIn
         try queue_create_infos.append(allocator, queue_create_info);
     }
 
-    // only add present queue if indices differ
     if (indices.graphics_family != indices.present_family) {
         const queue_create_info: c.VkDeviceQueueCreateInfo = .{
             .sType = c.VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
@@ -247,7 +238,7 @@ pub fn create_device(physical_device: c.VkPhysicalDevice, indices: QueueFamilyIn
     return device;
 }
 
-pub fn select_suitable_memory_type_index(
+pub fn selectSuitableMemoryTypeIndex(
     physical_device: c.VkPhysicalDevice,
     type_filter: u32,
     properties: c.VkMemoryPropertyFlags,

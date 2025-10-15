@@ -19,7 +19,7 @@ const SDLError = error{
 
 const allocator = std.heap.page_allocator;
 
-fn get_required_extensions() !ArrayList([*c]const u8) {
+fn getRequiredExtensions() !ArrayList([*c]const u8) {
     var extension_count_sdl: u32 = undefined;
     const extensions_sdl = c.SDL_Vulkan_GetInstanceExtensions(&extension_count_sdl);
 
@@ -29,7 +29,7 @@ fn get_required_extensions() !ArrayList([*c]const u8) {
     return extensions;
 }
 
-fn sdl_get_window_buffer_size(context: ?*anyopaque) WindowFrameBufferSize {
+fn getWindowFbSize(context: ?*anyopaque) WindowFrameBufferSize {
     std.debug.assert(context != null);
     const window = @as(?*c.SDL_Window, @ptrCast(context.?));
 
@@ -54,33 +54,33 @@ pub fn main() !void {
     defer c.SDL_Vulkan_UnloadLibrary();
 
     const window: ?*c.SDL_Window = c.SDL_CreateWindow(config.app_name, config.w_width, config.w_height, c.SDL_WINDOW_VULKAN | c.SDL_WINDOW_RESIZABLE);
-    var required_extensions = try get_required_extensions();
+    var required_extensions = try getRequiredExtensions();
 
     const required_extensions_slice = try required_extensions.toOwnedSlice(allocator);
 
-    var vk_context_builder = try vk_context_mod.create_vk_context_builder(required_extensions_slice);
+    var vk_context_builder = try vk_context_mod.createVkContextBuilder(required_extensions_slice);
     allocator.free(required_extensions_slice);
 
-    const instance = vk_context_builder.get_instance();
+    const instance = vk_context_builder.getInstance();
 
     var surface: c.VkSurfaceKHR = undefined;
     if (c.SDL_Vulkan_CreateSurface(window, instance, null, &surface) == false)
         return SDLError.SDL_Vulkan_CreateSurfaceFailure;
 
     var vk_context = try vk_context_builder
-        .set_surface(surface)
-        .set_get_window_frame_buffer_size_fn(sdl_get_window_buffer_size)
-        .set_get_window_frame_buffer_size_context(@ptrCast(window))
+        .setSurface(surface)
+        .setGetWindowFbSizeCallback(getWindowFbSize)
+        .setGetWindowFbSizeContext(@ptrCast(window))
         .build();
 
     defer vk_context.deinit();
 
-    try main_loop(&vk_context, window);
+    try mainLoop(&vk_context, window);
 
     _ = c.vkDeviceWaitIdle(vk_context.device);
 }
 
-fn main_loop(vk_context: *VkContext, window: ?*c.SDL_Window) !void {
+fn mainLoop(vk_context: *VkContext, window: ?*c.SDL_Window) !void {
     var event: c.SDL_Event = undefined;
     var quit: bool = false;
 
@@ -95,7 +95,7 @@ fn main_loop(vk_context: *VkContext, window: ?*c.SDL_Window) !void {
                 quit = true;
             } else if (event.type == c.SDL_EVENT_WINDOW_RESIZED) {
                 _ = c.SDL_SetWindowSize(window, event.window.data1, event.window.data2);
-                vk_context.frame_buffer_resized = true;
+                vk_context.framebuffer_resized = true;
             }
         }
 
