@@ -24,7 +24,7 @@ pub const SwapChainState = struct {
     image_views: []c.VkImageView,
 
     // meta data
-    surface_capabilites: c.VkSurfaceCapabilitiesKHR,
+    surface_capabilities: c.VkSurfaceCapabilitiesKHR,
     surface_format: c.VkSurfaceFormatKHR,
     present_mode: c.VkPresentModeKHR,
 
@@ -77,7 +77,7 @@ fn populate_swap_chain_common_helper(
 
     const surface_format = swap_chain_state_ptr.*.surface_format;
     const surface_present_mode = swap_chain_state_ptr.*.present_mode;
-    const surface_capabilities = swap_chain_state_ptr.*.surface_capabilites;
+    const surface_capabilities = swap_chain_state_ptr.*.surface_capabilities;
 
     const surface_extent = select_swap_extent(
         surface_capabilities,
@@ -132,7 +132,7 @@ pub fn create_swap_chain_state(
     swap_chain_state.present_mode = surface_present_mode;
     swap_chain_state.queue_family_indices = queue_family_indices;
     swap_chain_state.surface = surface;
-    swap_chain_state.surface_capabilites = surface_capabilities;
+    swap_chain_state.surface_capabilities = surface_capabilities;
     swap_chain_state.surface_format = surface_format;
 
     try populate_swap_chain_common_helper(
@@ -184,12 +184,10 @@ pub fn query_swapchain_support_details(
     physical_device: c.VkPhysicalDevice,
     vk_surface: c.VkSurfaceKHR,
 ) !SwapChainSupportDetails {
-    // capabilities
     var surface_capabilities: c.VkSurfaceCapabilitiesKHR = undefined;
     if (c.vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical_device, vk_surface, @ptrCast(&surface_capabilities)) != c.VK_SUCCESS)
         return QuerySwapChainError.GetCapabilities;
 
-    // formats
     var surface_formats: []c.VkSurfaceFormatKHR = undefined;
     {
         var format_count: u32 = undefined;
@@ -206,7 +204,6 @@ pub fn query_swapchain_support_details(
     }
     errdefer allocator.free(surface_formats);
 
-    // present modes
     var present_modes: []c.VkPresentModeKHR = undefined;
     {
         var present_mode_count: u32 = undefined;
@@ -229,8 +226,6 @@ pub fn query_swapchain_support_details(
     };
 }
 
-/// choose preferred format.
-///
 /// if preferred format is unavailable, picks the first one.
 pub fn select_swap_surface_format(available_formats: []c.VkSurfaceFormatKHR) c.VkSurfaceFormatKHR {
     std.debug.assert(available_formats.len != 0);
@@ -244,9 +239,7 @@ pub fn select_swap_surface_format(available_formats: []c.VkSurfaceFormatKHR) c.V
     return available_formats[0];
 }
 
-/// choose preferred present mode.
-///
-/// if preferred present mode is unavailable, picks c.VK_PRESENT_MODE_FIFO_KHR.
+/// if preferred present mode is unavailable, picks c.VK_PRESENT_MODE_FIFO_KHR (guaranteed to be supported).
 pub fn select_swap_present_mode(available_present_modes: []c.VkPresentModeKHR) c.VkPresentModeKHR {
     for (available_present_modes) |available_present_mode| {
         if (available_present_mode == c.VK_PRESENT_MODE_MAILBOX_KHR) {
@@ -254,7 +247,6 @@ pub fn select_swap_present_mode(available_present_modes: []c.VkPresentModeKHR) c
         }
     }
 
-    // all devices that support Vulkan must support this present mode so it is a nice default.
     return c.VK_PRESENT_MODE_FIFO_KHR;
 }
 
